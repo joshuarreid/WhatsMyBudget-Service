@@ -1,7 +1,7 @@
 -- MySQL 8 Schema for Statement-Based Budgeting Application (No ENUM columns, all VARCHAR, semicolons after each statement)
 
 CREATE TABLE budget_transactions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     category VARCHAR(128) NOT NULL,
@@ -12,14 +12,16 @@ CREATE TABLE budget_transactions (
     created_time DATETIME,
     payment_method VARCHAR(64) NOT NULL,
     statement_period VARCHAR(32) NOT NULL,
+    row_hash VARCHAR(64) NULL,
     INDEX idx_statement_period (statement_period),
     INDEX idx_account (account),
     INDEX idx_payment_method (payment_method),
-    INDEX idx_category (category)
+    INDEX idx_category (category),
+    INDEX idx_row_hash (row_hash)
 );
 
 CREATE TABLE projected_transactions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     category VARCHAR(128) NOT NULL,
@@ -37,7 +39,7 @@ CREATE TABLE projected_transactions (
 );
 
 CREATE TABLE statement_periods (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     period_name VARCHAR(32) NOT NULL UNIQUE,
     start_date DATE,
     end_date DATE,
@@ -45,14 +47,14 @@ CREATE TABLE statement_periods (
 );
 
 CREATE TABLE local_cache (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     cache_key VARCHAR(128) NOT NULL UNIQUE,
     cache_value TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE archived_statement_summary (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     statement_period VARCHAR(32) NOT NULL,
     payment_method VARCHAR(64) NOT NULL,
     user_name VARCHAR(64) NOT NULL,
@@ -65,7 +67,7 @@ CREATE TABLE archived_statement_summary (
 );
 
 CREATE TABLE archived_statement_category_summary (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     statement_period VARCHAR(32) NOT NULL,
     payment_method VARCHAR(64) NOT NULL,
     account VARCHAR(32) NOT NULL,
@@ -76,7 +78,7 @@ CREATE TABLE archived_statement_category_summary (
 );
 
 CREATE TABLE workspace_backups (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     backup_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     workspace_json LONGTEXT NOT NULL,
     budget_transactions_hash VARCHAR(64),
