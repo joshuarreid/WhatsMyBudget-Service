@@ -42,13 +42,15 @@ public class WebConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
+                // Apply CORS to all endpoints (incl. /auth/login) so the browser can complete preflight.
+                registry.addMapping("/**")
                         .allowedOrigins(allowedOriginsList.toArray(new String[0]))
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                        .allowedHeaders("*")
+                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                        .allowedHeaders("content-type", "x-transaction-id", "authorization")
                         .exposedHeaders("X-Transaction-ID")
                         .allowCredentials(true);
-                logger.info("CORS mapping applied for /api/** to origins: {}", allowedOriginsList);
+
+                logger.info("CORS mapping applied for /** to origins: {}", allowedOriginsList);
             }
         };
     }

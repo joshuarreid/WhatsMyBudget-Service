@@ -41,6 +41,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>1.18.34</version>
             <optional>true</optional>
         </dependency>
         <dependency>
@@ -70,6 +71,34 @@
             <artifactId>opencsv</artifactId>
             <version>5.9</version>
         </dependency>
+        <!-- Security: protect v2 APIs with OAuth2 Bearer tokens -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <!-- Optional: only needed if this service itself must obtain tokens to call downstream APIs -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- JWT encode/decode (Nimbus) for backend-minted tokens -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+
+        <!-- BCrypt password hashing utilities -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -84,6 +113,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+                            <version>1.18.34</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
