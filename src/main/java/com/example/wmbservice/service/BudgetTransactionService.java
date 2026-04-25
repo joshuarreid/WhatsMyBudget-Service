@@ -1,11 +1,9 @@
 package com.example.wmbservice.service;
-import com.example.wmbservice.model.AccountBudgetTransactionList;
-import com.example.wmbservice.model.BudgetTransaction;
-import com.example.wmbservice.model.BudgetTransactionList;
-import com.example.wmbservice.model.StatementPeriod;
+import com.example.wmbservice.model.*;
 import com.example.wmbservice.repository.BudgetTransactionRepository;
 import com.example.wmbservice.repository.StatementPeriodRepository;
 import com.example.wmbservice.util.BudgetTransactionCsvImporter;
+import com.example.wmbservice.util.RowHasher;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +21,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import static com.example.wmbservice.util.RowHasher.generateRowHash;
+
 /**
  * Service layer for BudgetTransaction CRUD with deduplication and robust logging.
  * All methods propagate X-Transaction-ID for traceability and error handling.
@@ -38,6 +38,7 @@ public class BudgetTransactionService {
     private final BudgetTransactionRepository repository;
     private final BudgetTransactionCsvImporter csvImporter;
     private final StatementPeriodRepository statementPeriodRepository;
+    private final BankStatementService bankStatementService;
 
     // Regex enforces FULL MONTH NAME (uppercase or mixed-case normalized) followed by 4-digit year e.g. OCTOBER2025
     private static final Pattern PERIOD_NAME_PATTERN = Pattern.compile(
@@ -47,10 +48,13 @@ public class BudgetTransactionService {
 
     public BudgetTransactionService(BudgetTransactionRepository repository,
                                     BudgetTransactionCsvImporter csvImporter,
-                                    StatementPeriodRepository statementPeriodRepository) {
+                                    StatementPeriodRepository statementPeriodRepository,
+                                    BankStatementService bankStatementService) {
         this.repository = repository;
         this.csvImporter = csvImporter;
         this.statementPeriodRepository = statementPeriodRepository;
+        this.bankStatementService = bankStatementService;
+        logger.info("BudgetTransactionService initialized with BankStatementService and repositories.");
     }
 
     /**
@@ -218,6 +222,7 @@ public class BudgetTransactionService {
     /**
      * Update an existing transaction.
      * Validates and ensures updated statementPeriod exists when provided.
+     * Only updates rowHash if any canonical (deduplication) fields are modified.
      *
      * @param id Transaction ID.
      * @param updated Updated transaction fields.
@@ -235,13 +240,20 @@ public class BudgetTransactionService {
         }
         BudgetTransaction existing = existingOpt.get();
 
+        // Save original canonical fields for dedupe hash comparison
+        String origName = existing.getName();
+        BigDecimal origAmount = existing.getAmount();
+        LocalDate origDate = existing.getTransactionDate();
+        String origPaymentMethod = existing.getPaymentMethod();
+        String origStatementPeriod = existing.getStatementPeriod();
+
         // If a new statementPeriod is provided, validate and ensure it exists
         if (updated.getStatementPeriod() != null && !updated.getStatementPeriod().isBlank()) {
             String normalized = normalizeAndEnsureStatementPeriod(updated.getStatementPeriod(), transactionId);
             existing.setStatementPeriod(normalized);
         }
 
-        // Copy updatable fields
+        // Copy updatable fields to existing transaction
         existing.setName(updated.getName());
         existing.setAmount(updated.getAmount());
         existing.setCategory(updated.getCategory());
@@ -249,18 +261,31 @@ public class BudgetTransactionService {
         existing.setTransactionDate(updated.getTransactionDate());
         existing.setAccount(updated.getAccount());
         existing.setStatus(updated.getStatus());
-        existing.setPaymentMethod(updated.getPaymentMethod());
+        existing.setPaymentMethod(updated.getPaymentMethod().toLowerCase());
         existing.setCreatedTime(updated.getCreatedTime());
 
-        String newRowHash = generateRowHash(existing);
-        existing.setRowHash(newRowHash);
-        logger.debug("Generated new rowHash for updated transaction. transactionId={}, rowHash={}", transactionId, newRowHash);
+        // Only update row hash if canonical import fields have changed
+        boolean canonicalChanged =
+                !Objects.equals(existing.getName(), origName) ||
+                        (existing.getAmount() != null && !existing.getAmount().equals(origAmount)) ||
+                        !Objects.equals(existing.getTransactionDate(), origDate) ||
+                        !Objects.equals(existing.getPaymentMethod(), origPaymentMethod) ||
+                        !Objects.equals(existing.getStatementPeriod(), origStatementPeriod);
 
-        // Check for duplicate if rowHash changes
-        Optional<BudgetTransaction> duplicate = repository.findByRowHashAndStatementPeriod(newRowHash, existing.getStatementPeriod());
-        if (duplicate.isPresent() && !duplicate.get().getId().equals(id)) {
-            logger.warn("Duplicate transaction detected on update. transactionId={}, rowHash={}, statementPeriod={}", transactionId, newRowHash, existing.getStatementPeriod());
-            throw new DuplicateTransactionException("Transaction already exists for this statement period.");
+        if (canonicalChanged) {
+            // Compute new hash using only canonical fields as per RowHasher
+            String newRowHash = RowHasher.generateRowHash(existing);
+            logger.debug("Row hash updated for canonical field change. transactionId={}, rowHash={}", transactionId, newRowHash);
+            existing.setRowHash(newRowHash);
+
+            // Check for duplicate if rowHash changes
+            Optional<BudgetTransaction> duplicate = repository.findByRowHashAndStatementPeriod(newRowHash, existing.getStatementPeriod());
+            if (duplicate.isPresent() && !duplicate.get().getId().equals(id)) {
+                logger.warn("Duplicate transaction detected on update. transactionId={}, rowHash={}, statementPeriod={}", transactionId, newRowHash, existing.getStatementPeriod());
+                throw new DuplicateTransactionException("Transaction already exists for this statement period.");
+            }
+        } else {
+            logger.debug("No canonical fields changed; rowHash is unchanged. transactionId={}, rowHash={}", transactionId, existing.getRowHash());
         }
 
         try {
@@ -322,42 +347,7 @@ public class BudgetTransactionService {
         }
     }
 
-    /**
-     * Generate SHA-256 row hash for deduplication.
-     * Includes only business-key fields per design: name, account, amount, category, criticality, transactionDate, paymentMethod, statementPeriod.
-     * Excludes createdTime and other non-deterministic fields to ensure deduplication works as intended.
-     * @param tx BudgetTransaction to hash.
-     * @return SHA-256 hash string.
-     */
-    public String generateRowHash(BudgetTransaction tx) {
-        logger.debug("generateRowHash entered for transaction: name={}, account={}, amount={}, category={}, criticality={}, transactionDate={}, paymentMethod={}, statementPeriod={}",
-                tx.getName(), tx.getAccount(), tx.getAmount(), tx.getCategory(), tx.getCriticality(), tx.getTransactionDate(), tx.getPaymentMethod(), tx.getStatementPeriod());
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            String raw = String.join("|",
-                    safe(tx.getName()),
-                    safe(tx.getAccount()),
-                    safeAmount(tx.getAmount()),
-                    safe(tx.getCategory()),
-                    safe(tx.getCriticality()),
-                    safeDate(tx.getTransactionDate()),
-                    safe(tx.getPaymentMethod()),
-                    safe(tx.getStatementPeriod())
-            );
-            byte[] hash = md.digest(raw.getBytes(StandardCharsets.UTF_8));
-            try (Formatter formatter = new Formatter()) {
-                for (byte b : hash) {
-                    formatter.format("%02x", b);
-                }
-                String result = formatter.toString();
-                logger.debug("generateRowHash successful. raw={}, hash={}", raw, result);
-                return result;
-            }
-        } catch (Exception e) {
-            logger.error("Error generating rowHash. error={}", e.getMessage(), e);
-            throw new RuntimeException("Failed to generate row hash", e);
-        }
-    }
+
 
     /**
      * Bulk imports transactions from a CSV file with deduplication and error reporting.
@@ -430,7 +420,7 @@ public class BudgetTransactionService {
      * @param transactionId propagated transaction id for logging
      * @return normalized period name (uppercase)
      */
-    private String normalizeAndEnsureStatementPeriod(String periodName, String transactionId) {
+    String normalizeAndEnsureStatementPeriod(String periodName, String transactionId) {
         logger.debug("normalizeAndEnsureStatementPeriod entered. transactionId={}, rawPeriodName={}", transactionId, periodName);
 
         if (periodName == null) {
@@ -469,27 +459,32 @@ public class BudgetTransactionService {
     }
 
     /**
-     * Result object for bulk import summary.
+     * Imports transactions from a credit card statement CSV file.
+     * Delegates the operation to BankStatementService, which performs bank-specific parsing, deduplication, and error handling.
+     *
+     * @param file            the uploaded statement CSV file
+     * @param bank            the originating bank (enum)
+     * @param statementPeriod required statement period to tag transactions
+     * @param account         the account associated with the transactions
+     * @param paymentMethod   the payment method associated with the transactions
+     * @param transactionId   the X-Transaction-ID for traceability and logging
+     * @return BulkImportResult containing counts of inserted, duplicate, and error rows
      */
-    public static class BulkImportResult {
-        private final int insertedCount;
-        private final int duplicateCount;
-        private final List<Map<String, Object>> errors;
-
-        public BulkImportResult(int insertedCount, int duplicateCount, List<Map<String, Object>> errors) {
-            this.insertedCount = insertedCount;
-            this.duplicateCount = duplicateCount;
-            this.errors = errors;
-        }
-
-        public int getInsertedCount() { return insertedCount; }
-        public int getDuplicateCount() { return duplicateCount; }
-        public List<Map<String, Object>> getErrors() { return errors; }
+    public BulkImportResult importCreditCardStatement(
+            MultipartFile file,
+            Bank bank,
+            String statementPeriod,
+            String account,
+            String paymentMethod,
+            String transactionId
+    ) {
+        logger.info("importCreditCardStatement delegating to BankStatementService. transactionId={}, bank={}, statementPeriod={}, account={}, paymentMethod={}",
+                transactionId, bank, statementPeriod, account, paymentMethod);
+        BulkImportResult result = bankStatementService.importCreditCardStatement(file, bank, statementPeriod, account, paymentMethod, transactionId);
+        logger.info("importCreditCardStatement completed. transactionId={}, insertedCount={}, duplicateCount={}, errorCount={}",
+                transactionId, result.getInsertedCount(), result.getDuplicateCount(), result.getErrors().size());
+        return result;
     }
 
-    // Helper methods for safely formatting values
-    private String safe(String val) { return val == null ? "" : val.trim().toLowerCase(); }
-    private String safeAmount(BigDecimal val) { return val == null ? "" : val.setScale(2, RoundingMode.HALF_UP).toString(); }
-    private String safeDate(LocalDate val) { return val == null ? "" : val.toString(); }
-    private String safeDateTime(LocalDateTime val) { return val == null ? "" : val.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME); }
+
 }

@@ -1,8 +1,6 @@
 package com.example.wmbservice.controller;
 
-import com.example.wmbservice.model.AccountBudgetTransactionList;
-import com.example.wmbservice.model.BudgetTransaction;
-import com.example.wmbservice.model.BudgetTransactionList;
+import com.example.wmbservice.model.*;
 import com.example.wmbservice.service.BudgetTransactionService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -11,6 +9,7 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -286,7 +285,7 @@ public class BudgetTransactionController {
         logger.info("uploadTransactions entered. transactionId={}, statementPeriod={}", transactionId, statementPeriod);
 
         try {
-            BudgetTransactionService.BulkImportResult result = budgetTransactionService.bulkImportTransactions(
+            BulkImportResult result = budgetTransactionService.bulkImportTransactions(
                     file, statementPeriod, transactionId);
 
             logger.info("uploadTransactions completed. transactionId={}, insertedCount={}, duplicateCount={}, errorCount={}",
@@ -305,6 +304,78 @@ public class BudgetTransactionController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .header("X-Transaction-ID", transactionId)
                     .body(errorResponse);
+        }
+    }
+
+
+    /**
+     * Upload a credit card statement CSV file. Requires specifying originating bank, statement period, account, and payment method.
+     * This endpoint supports repeated uploads for the same statement period and skips already-imported transactions.
+     *
+     * @param file            the CSV file being uploaded
+     * @param bank            the source bank; determines parsing logic (must match a supported enum)
+     * @param statementPeriod required statement period for associating transactions (no inference from file)
+     * @param account         the account associated with the uploaded transactions
+     * @param paymentMethod   the payment method associated with the uploaded transactions
+     * @param transactionId   X-Transaction-ID for logging/traceability
+     * @return summary response of inserted, duplicate, and error counts
+     */
+    @PostMapping("/upload-statement")
+    public ResponseEntity<?> uploadCreditCardStatement(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("bank") String bank,
+            @RequestParam("account") String account,
+            @RequestParam("paymentMethod") String paymentMethod,
+            @RequestParam(value = "statementPeriod", required = true) String statementPeriod,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId
+    ) {
+        logger.info("uploadCreditCardStatement entered. transactionId={}, bank={}, account={}, paymentMethod={}, statementPeriod={}",
+                transactionId, bank, account, paymentMethod, statementPeriod);
+
+        Bank selectedBank;
+        try {
+            selectedBank = Bank.valueOf(bank.trim().toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            logger.warn("Invalid bank value provided. transactionId={}, providedBank={}, allowedBanks={}", transactionId, bank, Arrays.toString(Bank.values()));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body("Invalid bank value. Allowed values: " + Arrays.toString(Bank.values()));
+        }
+
+        if (statementPeriod == null || statementPeriod.isBlank()) {
+            logger.warn("Missing statementPeriod for credit card upload. transactionId={}, bank={}, account={}, paymentMethod={}", transactionId, bank, account, paymentMethod);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body("statementPeriod is required for credit card statement import.");
+        }
+        if (account == null || account.isBlank()) {
+            logger.warn("Missing account for credit card upload. transactionId={}, bank={}, statementPeriod={}, paymentMethod={}", transactionId, bank, statementPeriod, paymentMethod);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body("account is required for credit card statement import.");
+        }
+        if (paymentMethod == null || paymentMethod.isBlank()) {
+            logger.warn("Missing paymentMethod for credit card upload. transactionId={}, bank={}, account={}, statementPeriod={}", transactionId, bank, account, statementPeriod);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body("paymentMethod is required for credit card statement import.");
+        }
+
+        try {
+            BulkImportResult result =
+                    budgetTransactionService.importCreditCardStatement(file, selectedBank, statementPeriod, account, paymentMethod, transactionId);
+
+            logger.info("uploadCreditCardStatement completed. transactionId={}, insertedCount={}, duplicateCount={}, errorCount={}",
+                    transactionId, result.getInsertedCount(), result.getDuplicateCount(), result.getErrors().size());
+
+            return ResponseEntity.ok()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(result);
+        } catch (Exception e) {
+            logger.error("Error in uploadCreditCardStatement. transactionId={}, bank={}, account={}, paymentMethod={}, error={}", transactionId, bank, account, paymentMethod, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body("Failed to upload credit card statement for bank: " + selectedBank.name());
         }
     }
 
