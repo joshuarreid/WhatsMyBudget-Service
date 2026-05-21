@@ -5,6 +5,7 @@ import com.example.wmbservice.model.ProjectedTransactionList;
 import com.example.wmbservice.model.StatementPeriod;
 import com.example.wmbservice.repository.ProjectedTransactionRepository;
 import com.example.wmbservice.repository.StatementPeriodRepository;
+import com.example.wmbservice.rag.RagDocumentClient;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ public class ProjectedTransactionService {
     private static final Logger logger = LoggerFactory.getLogger(ProjectedTransactionService.class);
     private final ProjectedTransactionRepository repository;
     private final StatementPeriodRepository statementPeriodRepository;
+    private final RagDocumentClient ragDocumentClient;
 
     // Regex enforces FULL MONTH NAME followed by 4-digit year, e.g. OCTOBER2025
     private static final Pattern PERIOD_NAME_PATTERN = Pattern.compile(
@@ -41,9 +43,12 @@ public class ProjectedTransactionService {
             Pattern.CASE_INSENSITIVE
     );
 
-    public ProjectedTransactionService(ProjectedTransactionRepository repository, StatementPeriodRepository statementPeriodRepository) {
+    public ProjectedTransactionService(ProjectedTransactionRepository repository,
+                                      StatementPeriodRepository statementPeriodRepository,
+                                      RagDocumentClient ragDocumentClient) {
         this.repository = repository;
         this.statementPeriodRepository = statementPeriodRepository;
+        this.ragDocumentClient = ragDocumentClient;
     }
 
     /**
@@ -116,6 +121,10 @@ public class ProjectedTransactionService {
 
             ProjectedTransaction saved = repository.save(transaction);
             logger.info("Projected transaction created successfully. transactionId={}, id={}", transactionId, saved.getId());
+
+            // Best-effort RAG ingest
+            ragDocumentClient.ingestProjected(saved, transactionId);
+
             return saved;
         } catch (DataIntegrityViolationException e) {
             logger.error("Data integrity violation on createProjectedTransaction. transactionId={}, error={}", transactionId, e.getMessage(), e);
@@ -246,6 +255,10 @@ public class ProjectedTransactionService {
 
             ProjectedTransaction saved = repository.save(existing);
             logger.info("updateProjectedTransaction successful. transactionId={}, id={}", transactionId, id);
+
+            // Best-effort RAG update
+            ragDocumentClient.updateProjected(saved, transactionId);
+
             return saved;
         } catch (DataIntegrityViolationException e) {
             logger.error("Data integrity violation on updateProjectedTransaction. transactionId={}, error={}", transactionId, e.getMessage(), e);
@@ -274,6 +287,10 @@ public class ProjectedTransactionService {
         try {
             repository.deleteById(id);
             logger.info("deleteProjectedTransaction successful. transactionId={}, id={}", transactionId, id);
+
+            // Best-effort RAG delete
+            ragDocumentClient.deleteProjected(id, transactionId);
+
             return true;
         } catch (Exception e) {
             logger.error("Error deleting projected transaction. transactionId={}, id={}, error={}", transactionId, id, e.getMessage(), e);
@@ -290,6 +307,13 @@ public class ProjectedTransactionService {
     @Transactional
     public long deleteAllTransactions(String transactionId) {
         logger.info("deleteAllProjectedTransactions entered. transactionId={}", transactionId);
+
+        // Capture ids before deletion so we can best-effort delete in RAG too.
+        List<Long> idsToDelete = repository.findAll().stream()
+                .map(ProjectedTransaction::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
         long count = repository.count();
         if (count == 0) {
             logger.info("No projected transactions to delete. transactionId={}", transactionId);
@@ -298,6 +322,12 @@ public class ProjectedTransactionService {
         try {
             repository.deleteAll();
             logger.info("All projected transactions deleted. transactionId={}, deletedCount={}", transactionId, count);
+
+            // Best-effort RAG deletes (don't fail the request if RAG is down)
+            for (Long id : idsToDelete) {
+                ragDocumentClient.deleteProjected(id, transactionId);
+            }
+
             return count;
         } catch (Exception e) {
             logger.error("Error deleting all projected transactions. transactionId={}, error={}", transactionId, e.getMessage(), e);
