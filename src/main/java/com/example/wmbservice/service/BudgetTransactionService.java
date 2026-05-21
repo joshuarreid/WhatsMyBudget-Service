@@ -5,7 +5,6 @@ import com.example.wmbservice.repository.BudgetTransactionRepository;
 import com.example.wmbservice.repository.StatementPeriodRepository;
 import com.example.wmbservice.util.BudgetTransactionCsvImporter;
 import com.example.wmbservice.util.RowHasher;
-import com.example.wmbservice.rag.RagDocumentClient;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,12 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -41,7 +36,6 @@ public class BudgetTransactionService {
     private final BudgetTransactionCsvImporter csvImporter;
     private final StatementPeriodRepository statementPeriodRepository;
     private final BankStatementService bankStatementService;
-    private final RagDocumentClient ragDocumentClient;
 
     // Regex enforces FULL MONTH NAME (uppercase or mixed-case normalized) followed by 4-digit year e.g. OCTOBER2025
     private static final Pattern PERIOD_NAME_PATTERN = Pattern.compile(
@@ -52,13 +46,11 @@ public class BudgetTransactionService {
     public BudgetTransactionService(BudgetTransactionRepository repository,
                                     BudgetTransactionCsvImporter csvImporter,
                                     StatementPeriodRepository statementPeriodRepository,
-                                    BankStatementService bankStatementService,
-                                    RagDocumentClient ragDocumentClient) {
+                                    BankStatementService bankStatementService) {
         this.repository = repository;
         this.csvImporter = csvImporter;
         this.statementPeriodRepository = statementPeriodRepository;
         this.bankStatementService = bankStatementService;
-        this.ragDocumentClient = ragDocumentClient;
         logger.info("BudgetTransactionService initialized with BankStatementService and repositories.");
     }
 
@@ -120,10 +112,6 @@ public class BudgetTransactionService {
         try {
             BudgetTransaction saved = repository.save(transaction);
             logger.info("Transaction created successfully. transactionId={}, id={}", transactionId, saved.getId());
-
-            // Best-effort RAG ingest
-            ragDocumentClient.ingestBudget(saved, transactionId);
-
             return saved;
         } catch (DataIntegrityViolationException e) {
             logger.error("Data integrity violation on create. transactionId={}, error={}", transactionId, e.getMessage(), e);
@@ -300,10 +288,6 @@ public class BudgetTransactionService {
         try {
             BudgetTransaction saved = repository.save(existing);
             logger.info("updateTransaction successful. transactionId={}, id={}", transactionId, id);
-
-            // Best-effort RAG update
-            ragDocumentClient.updateBudget(saved, transactionId);
-
             return saved;
         } catch (DataIntegrityViolationException e) {
             logger.error("Data integrity violation on update. transactionId={}, error={}", transactionId, e.getMessage(), e);
@@ -331,10 +315,6 @@ public class BudgetTransactionService {
         try {
             repository.deleteById(id);
             logger.info("deleteTransaction successful. transactionId={}, id={}", transactionId, id);
-
-            // Best-effort RAG delete
-            ragDocumentClient.deleteBudget(id, transactionId);
-
             return true;
         } catch (Exception e) {
             logger.error("Error deleting transaction. transactionId={}, id={}, error={}", transactionId, id, e.getMessage(), e);
@@ -350,12 +330,6 @@ public class BudgetTransactionService {
     public long deleteAllTransactions(String transactionId) {
         logger.info("deleteAllTransactions entered. transactionId={}", transactionId);
 
-        // Capture ids before deletion so we can best-effort delete in RAG too.
-        List<Long> idsToDelete = repository.findAll().stream()
-                .map(BudgetTransaction::getId)
-                .filter(Objects::nonNull)
-                .toList();
-
         long count = repository.count();
         if (count == 0) {
             logger.info("No transactions to delete. transactionId={}", transactionId);
@@ -364,19 +338,12 @@ public class BudgetTransactionService {
         try {
             repository.deleteAll();
             logger.info("All transactions deleted. transactionId={}, deletedCount={}", transactionId, count);
-
-            for (Long id : idsToDelete) {
-                ragDocumentClient.deleteBudget(id, transactionId);
-            }
-
             return count;
         } catch (Exception e) {
             logger.error("Error deleting all transactions. transactionId={}, error={}", transactionId, e.getMessage(), e);
             throw e;
         }
     }
-
-
 
     /**
      * Bulk imports transactions from a CSV file with deduplication and error reporting.
@@ -427,8 +394,6 @@ public class BudgetTransactionService {
                 logger.debug("Inserted transaction in bulk import. transactionId={}, rowHash={}, row={}",
                         transactionId, transaction.getRowHash(), i + 2);
 
-                // Best-effort RAG ingest
-                ragDocumentClient.ingestBudget(saved, transactionId);
 
             } catch (Exception e) {
                 logger.error("Error inserting transaction in bulk import. transactionId={}, row={}, error={}",
