@@ -39,6 +39,118 @@ public interface BudgetTransactionRepository extends JpaRepository<BudgetTransac
                                           @Param("criticality") String criticality,
                                           @Param("paymentMethod") String paymentMethod);
 
+    /**
+     * Fetch distinct periods seen in actual transactions.
+     */
+    @Query("SELECT DISTINCT t.statementPeriod FROM BudgetTransaction t ORDER BY t.statementPeriod DESC")
+    List<String> findDistinctStatementPeriods();
+
+    /**
+     * Overview totals for a period with optional paymentMethod/account filters.
+     */
+    @Query("SELECT COALESCE(SUM(t.amount), 0), COUNT(t) " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "AND (:account IS NULL OR t.account = :account)")
+    Object[] getOverviewTotals(@Param("statementPeriod") String statementPeriod,
+                              @Param("paymentMethod") String paymentMethod,
+                              @Param("account") String account);
+
+    /**
+     * Grouped totals for a period by category.
+     */
+    @Query("SELECT t.category, COALESCE(SUM(t.amount), 0), COUNT(t) " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "AND (:account IS NULL OR t.account = :account) " +
+            "GROUP BY t.category " +
+            "ORDER BY COALESCE(SUM(t.amount), 0) DESC")
+    List<Object[]> getCategoryBreakdown(@Param("statementPeriod") String statementPeriod,
+                                        @Param("paymentMethod") String paymentMethod,
+                                        @Param("account") String account);
+
+    /**
+     * Grouped totals for a period by account.
+     */
+    @Query("SELECT t.account, COALESCE(SUM(t.amount), 0), COUNT(t) " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "AND (:account IS NULL OR t.account = :account) " +
+            "GROUP BY t.account " +
+            "ORDER BY COALESCE(SUM(t.amount), 0) DESC")
+    List<Object[]> getAccountBreakdown(@Param("statementPeriod") String statementPeriod,
+                                       @Param("paymentMethod") String paymentMethod);
+
+    /**
+     * Grouped totals for a period by payment method.
+     */
+    @Query("SELECT t.paymentMethod, COALESCE(SUM(t.amount), 0), COUNT(t) " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (:account IS NULL OR t.account = :account) " +
+            "GROUP BY t.paymentMethod " +
+            "ORDER BY COALESCE(SUM(t.amount), 0) DESC")
+    List<Object[]> getPaymentMethodBreakdown(@Param("statementPeriod") String statementPeriod,
+                                             @Param("account") String account);
+
+    /**
+     * Daily totals within a period.
+     */
+    @Query("SELECT t.transactionDate, COALESCE(SUM(t.amount), 0), COUNT(t) " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "AND (:account IS NULL OR t.account = :account) " +
+            "GROUP BY t.transactionDate " +
+            "ORDER BY t.transactionDate ASC")
+    List<Object[]> getDailyTotals(@Param("statementPeriod") String statementPeriod,
+                                  @Param("paymentMethod") String paymentMethod,
+                                  @Param("account") String account);
+
+    /**
+     * Grouped totals for a period by criticality.
+     */
+    @Query("SELECT t.criticality, COALESCE(SUM(t.amount), 0), COUNT(t) " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "AND (:account IS NULL OR t.account = :account) " +
+            "GROUP BY t.criticality " +
+            "ORDER BY COALESCE(SUM(t.amount), 0) DESC")
+    List<Object[]> getCriticalityBreakdown(@Param("statementPeriod") String statementPeriod,
+                                           @Param("paymentMethod") String paymentMethod,
+                                           @Param("account") String account);
+
+    /**
+     * Duplicate hashes in a period.
+     */
+    @Query("SELECT t.rowHash, COUNT(t), COALESCE(SUM(t.amount), 0) " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod AND t.rowHash IS NOT NULL " +
+            "GROUP BY t.rowHash " +
+            "HAVING COUNT(t) > 1 " +
+            "ORDER BY COUNT(t) DESC")
+    List<Object[]> findDuplicatesByRowHash(@Param("statementPeriod") String statementPeriod);
+
+    /**
+     * Transactions considered uncategorized.
+     *
+     * Assumption: category can be NULL/blank or set to common placeholders.
+     */
+    @Query("SELECT t FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (t.category IS NULL OR TRIM(t.category) = '' OR UPPER(t.category) IN ('UNCATEGORIZED','UNKNOWN','NA','N/A')) " +
+            "ORDER BY t.transactionDate DESC")
+    List<BudgetTransaction> findUncategorized(@Param("statementPeriod") String statementPeriod);
+
+    /**
+     * Largest transactions for a period.
+     */
+    List<BudgetTransaction> findTopByStatementPeriodOrderByAmountDesc(String statementPeriod,
+                                                                      org.springframework.data.domain.Pageable pageable);
 
 
 }
