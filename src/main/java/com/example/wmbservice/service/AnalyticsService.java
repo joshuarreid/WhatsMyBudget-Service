@@ -50,7 +50,7 @@ public class AnalyticsService {
         List<String> periods = budgetTransactionRepository.findDistinctStatementPeriods();
         AnalyticsPeriodsResponse resp = new AnalyticsPeriodsResponse(periods, periods.size());
         long ms = (System.nanoTime() - startNs) / 1_000_000;
-        logger.info("[analytics.svc] <- getAllPeriods txId={} periods={} durationMs={}", transactionId, resp.count(), ms);
+        logger.info("[analytics.svc] <- getAllPeriods txId={} periods={} durationMs={}", transactionId, resp.getCount(), ms);
         return resp;
     }
 

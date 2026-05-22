@@ -47,7 +47,8 @@ public class AnalyticsController {
         logger.info("[analytics] -> GET /periods txId={}", transactionId);
         AnalyticsPeriodsResponse result = analyticsService.getAllPeriods(transactionId);
         long ms = (System.nanoTime() - startNs) / 1_000_000;
-        logger.info("[analytics] <- GET /periods txId={} status=200 periods={} durationMs={}", transactionId, result != null ? result.count() : null, ms);
+        Integer count = result != null ? result.getCount() : null;
+        logger.info("[analytics] <- GET /periods txId={} status=200 periods={} durationMs={}", transactionId, count, ms);
         return ResponseEntity.ok()
                 .header("X-Transaction-ID", transactionId)
                 .body(result);
@@ -73,7 +74,11 @@ public class AnalyticsController {
         AnalyticsPeriodOverviewResponse result = analyticsService.getPeriodOverview(period, paymentMethod, account, transactionId);
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics] <- GET /periods/{}/overview txId={} status=200 total={} count={} durationMs={}",
-                period, transactionId, result != null ? result.total() : null, result != null ? result.count() : null, ms);
+                period,
+                transactionId,
+                result != null ? result.getTotalAmount() : null,
+                result != null ? result.getTransactionCount() : null,
+                ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
