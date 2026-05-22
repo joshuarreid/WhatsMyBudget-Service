@@ -3,10 +3,13 @@ package com.example.wmbservice.controller;
 import com.example.wmbservice.dto.*;
 import com.example.wmbservice.model.BudgetTransaction;
 import com.example.wmbservice.service.AnalyticsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Analytics endpoints for budget transaction insights.
@@ -18,10 +21,19 @@ import java.util.List;
 @RequestMapping("/api/analytics")
 public class AnalyticsController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AnalyticsController.class);
+
     private final AnalyticsService analyticsService;
 
     public AnalyticsController(AnalyticsService analyticsService) {
         this.analyticsService = analyticsService;
+    }
+
+    private static String ensureTransactionId(String transactionId) {
+        if (transactionId == null || transactionId.isBlank() || "N/A".equalsIgnoreCase(transactionId)) {
+            return UUID.randomUUID().toString().replace("-", "");
+        }
+        return transactionId;
     }
 
     /**
@@ -30,7 +42,12 @@ public class AnalyticsController {
     @GetMapping("/periods")
     public ResponseEntity<AnalyticsPeriodsResponse> getAllPeriods(
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods txId={}", transactionId);
         AnalyticsPeriodsResponse result = analyticsService.getAllPeriods(transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods txId={} status=200 periods={} durationMs={}", transactionId, result != null ? result.count() : null, ms);
         return ResponseEntity.ok()
                 .header("X-Transaction-ID", transactionId)
                 .body(result);
@@ -45,10 +62,18 @@ public class AnalyticsController {
             @RequestParam(required = false) String paymentMethod,
             @RequestParam(required = false) String account,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/overview txId={} paymentMethod={} account={}", period, transactionId, paymentMethod, account);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/overview txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         AnalyticsPeriodOverviewResponse result = analyticsService.getPeriodOverview(period, paymentMethod, account, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/overview txId={} status=200 total={} count={} durationMs={}",
+                period, transactionId, result != null ? result.total() : null, result != null ? result.count() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -61,10 +86,17 @@ public class AnalyticsController {
             @RequestParam(required = false) String paymentMethod,
             @RequestParam(required = false) String account,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/categories txId={} paymentMethod={} account={}", period, transactionId, paymentMethod, account);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/categories txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         List<AnalyticsCategoryBreakdownResponse> result = analyticsService.getCategoryBreakdown(period, paymentMethod, account, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/categories txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -78,11 +110,19 @@ public class AnalyticsController {
             @RequestParam(required = false) String paymentMethod,
             @RequestParam(required = false) String account,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/categories/top txId={} limit={} paymentMethod={} account={}", period, transactionId, limit, paymentMethod, account);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/categories/top txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         int safeLimit = Math.max(0, Math.min(limit, 100));
         List<AnalyticsCategoryBreakdownResponse> result = analyticsService.getTopCategories(period, safeLimit, paymentMethod, account, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/categories/top txId={} status=200 limit={} rows={} durationMs={}",
+                period, transactionId, safeLimit, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -94,10 +134,17 @@ public class AnalyticsController {
             @PathVariable String period,
             @RequestParam(required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/accounts txId={} paymentMethod={}", period, transactionId, paymentMethod);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/accounts txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         List<AnalyticsAccountBreakdownResponse> result = analyticsService.getAccountBreakdown(period, paymentMethod, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/accounts txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -109,10 +156,17 @@ public class AnalyticsController {
             @PathVariable String period,
             @RequestParam(required = false) String account,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/payment-methods txId={} account={}", period, transactionId, account);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/payment-methods txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         List<AnalyticsPaymentMethodBreakdownResponse> result = analyticsService.getPaymentMethodBreakdown(period, account, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/payment-methods txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -125,10 +179,17 @@ public class AnalyticsController {
             @RequestParam(required = false) String paymentMethod,
             @RequestParam(required = false) String account,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/daily txId={} paymentMethod={} account={}", period, transactionId, paymentMethod, account);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/daily txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         List<AnalyticsDailyTotalResponse> result = analyticsService.getDailyTotals(period, paymentMethod, account, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/daily txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -141,10 +202,17 @@ public class AnalyticsController {
             @RequestParam(required = false) String paymentMethod,
             @RequestParam(required = false) String account,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/criticality txId={} paymentMethod={} account={}", period, transactionId, paymentMethod, account);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/criticality txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         List<AnalyticsCriticalityBreakdownResponse> result = analyticsService.getCriticalityBreakdown(period, paymentMethod, account, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/criticality txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -155,10 +223,17 @@ public class AnalyticsController {
     public ResponseEntity<List<AnalyticsDuplicateResponse>> getDuplicates(
             @PathVariable String period,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/duplicates txId={}", period, transactionId);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/duplicates txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         List<AnalyticsDuplicateResponse> result = analyticsService.getDuplicates(period, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/duplicates txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -169,10 +244,17 @@ public class AnalyticsController {
     public ResponseEntity<List<BudgetTransaction>> getUncategorized(
             @PathVariable String period,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/uncategorized txId={}", period, transactionId);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/uncategorized txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         List<BudgetTransaction> result = analyticsService.getUncategorized(period, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/uncategorized txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -184,11 +266,19 @@ public class AnalyticsController {
             @PathVariable String period,
             @RequestParam(defaultValue = "20") int limit,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/outliers txId={} limit={}", period, transactionId, limit);
         if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/outliers txId={} status=400 durationMs={}", transactionId, ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
         int safeLimit = Math.max(0, Math.min(limit, 200));
         List<BudgetTransaction> result = analyticsService.getOutliers(period, safeLimit, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/outliers txId={} status=200 limit={} rows={} durationMs={}",
+                period, transactionId, safeLimit, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 }

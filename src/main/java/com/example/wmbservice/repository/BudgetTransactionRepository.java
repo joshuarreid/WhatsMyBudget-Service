@@ -82,7 +82,13 @@ public interface BudgetTransactionRepository extends JpaRepository<BudgetTransac
             "GROUP BY t.account " +
             "ORDER BY COALESCE(SUM(t.amount), 0) DESC")
     List<Object[]> getAccountBreakdown(@Param("statementPeriod") String statementPeriod,
-                                       @Param("paymentMethod") String paymentMethod);
+                                       @Param("paymentMethod") String paymentMethod,
+                                       @Param("account") String account);
+
+    // Backwards-compatible overload: allow callers to use two-arg form (no account filter).
+    default List<Object[]> getAccountBreakdown(String statementPeriod, String paymentMethod) {
+        return getAccountBreakdown(statementPeriod, paymentMethod, null);
+    }
 
     /**
      * Grouped totals for a period by payment method.
