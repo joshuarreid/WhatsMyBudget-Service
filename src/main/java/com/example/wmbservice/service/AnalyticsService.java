@@ -45,8 +45,28 @@ public class AnalyticsService {
     public AnalyticsPeriodOverviewResponse getPeriodOverview(String period, String paymentMethod, String account, String transactionId) {
         logger.info("getPeriodOverview called. transactionId={}, period={}, paymentMethod={}, account={}", transactionId, period, paymentMethod, account);
         Object[] row = budgetTransactionRepository.getOverviewTotals(period, blankToNull(paymentMethod), blankToNull(account));
-        BigDecimal total = (BigDecimal) row[0];
-        Long count = (Long) row[1];
+        BigDecimal total;
+        if (row[0] instanceof BigDecimal) {
+            total = (BigDecimal) row[0];
+        } else if (row[0] instanceof Double) {
+            total = BigDecimal.valueOf((Double) row[0]);
+        } else if (row[0] != null) {
+            total = new BigDecimal(row[0].toString());
+        } else {
+            total = BigDecimal.ZERO;
+        }
+        Long count;
+        if (row[1] instanceof Long) {
+            count = (Long) row[1];
+        } else if (row[1] instanceof Integer) {
+            count = ((Integer) row[1]).longValue();
+        } else if (row[1] instanceof java.math.BigInteger) {
+            count = ((java.math.BigInteger) row[1]).longValue();
+        } else if (row[1] != null) {
+            count = Long.parseLong(row[1].toString());
+        } else {
+            count = 0L;
+        }
         return new AnalyticsPeriodOverviewResponse(period, blankToNull(paymentMethod), blankToNull(account), total, count);
     }
 
