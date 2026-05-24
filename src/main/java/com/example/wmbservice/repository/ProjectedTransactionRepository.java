@@ -34,6 +34,24 @@ public interface ProjectedTransactionRepository extends JpaRepository<ProjectedT
                                              @Param("paymentMethod") String paymentMethod);
 
     /**
+     * Filter projected transactions by inclusive transactionDate range and optional fields.
+     * Excludes rows with null transactionDate.
+     */
+    @Query("SELECT t FROM ProjectedTransaction t WHERE t.transactionDate IS NOT NULL " +
+            "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+            "AND (:account IS NULL OR LOWER(t.account) = LOWER(:account)) " +
+            "AND (:category IS NULL OR t.category = :category) " +
+            "AND (:criticality IS NULL OR t.criticality = :criticality) " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "ORDER BY t.createdTime DESC")
+    List<ProjectedTransaction> findByDateRangeFilters(@Param("startDate") LocalDate startDate,
+                                                     @Param("endDate") LocalDate endDate,
+                                                     @Param("account") String account,
+                                                     @Param("category") String category,
+                                                     @Param("criticality") String criticality,
+                                                     @Param("paymentMethod") String paymentMethod);
+
+    /**
      * Find a projected transaction by business-key columns (same semantics as row_hash lookup,
      * but implemented by matching columns directly). This avoids requiring a row_hash column in the DB.
      *

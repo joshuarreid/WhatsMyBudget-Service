@@ -85,6 +85,35 @@ public class AnalyticsService {
     }
 
     @Transactional
+    public AnalyticsPeriodOverviewResponse getDateRangeOverview(LocalDate startDate, LocalDate endDate, String paymentMethod, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getDateRangeOverview txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+
+        Object raw = budgetTransactionRepository.getOverviewTotalsByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
+        Object[] row;
+        if (raw == null) {
+            row = new Object[]{null, null};
+        } else {
+            Object[] arr = (Object[]) raw;
+            if (arr.length == 1 && arr[0] instanceof Object[]) {
+                row = (Object[]) arr[0];
+            } else {
+                row = arr;
+            }
+        }
+
+        BigDecimal total = toBigDecimal(row.length > 0 ? row[0] : null);
+        Long count = toLong(row.length > 1 ? row[1] : null);
+        AnalyticsPeriodOverviewResponse resp = new AnalyticsPeriodOverviewResponse(null, blankToNull(paymentMethod), blankToNull(account), total, count);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getDateRangeOverview txId={} startDate={} endDate={} total={} count={} durationMs={}",
+                transactionId, startDate, endDate, total, count, ms);
+        return resp;
+    }
+
+    @Transactional
     public List<AnalyticsCategoryBreakdownResponse> getCategoryBreakdown(String period, String paymentMethod, String account, String transactionId) {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
@@ -100,6 +129,23 @@ public class AnalyticsService {
     }
 
     @Transactional
+    public List<AnalyticsCategoryBreakdownResponse> getCategoryBreakdownByDateRange(LocalDate startDate, LocalDate endDate, String paymentMethod, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getCategoryBreakdownByDateRange txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        List<Object[]> rows = budgetTransactionRepository.getCategoryBreakdownByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
+        List<AnalyticsCategoryBreakdownResponse> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new AnalyticsCategoryBreakdownResponse((String) r[0], (BigDecimal) r[1], (Long) r[2]));
+        }
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getCategoryBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
     public List<AnalyticsCategoryBreakdownResponse> getTopCategories(String period, int limit, String paymentMethod, String account, String transactionId) {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
@@ -109,6 +155,21 @@ public class AnalyticsService {
         List<AnalyticsCategoryBreakdownResponse> out = all.subList(0, Math.min(limit, all.size()));
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getTopCategories txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
+    public List<AnalyticsCategoryBreakdownResponse> getTopCategoriesByDateRange(LocalDate startDate, LocalDate endDate, int limit, String paymentMethod, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getTopCategoriesByDateRange txId={} startDate={} endDate={} limit={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, limit, paymentMethod, account);
+        List<AnalyticsCategoryBreakdownResponse> all = getCategoryBreakdownByDateRange(startDate, endDate, paymentMethod, account, transactionId);
+        if (limit <= 0) return List.of();
+        List<AnalyticsCategoryBreakdownResponse> out = all.subList(0, Math.min(limit, all.size()));
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getTopCategoriesByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
         return out;
     }
 
@@ -129,6 +190,23 @@ public class AnalyticsService {
     }
 
     @Transactional
+    public List<AnalyticsAccountBreakdownResponse> getAccountBreakdownByDateRange(LocalDate startDate, LocalDate endDate, String paymentMethod, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getAccountBreakdownByDateRange txId={} startDate={} endDate={} paymentMethod={}",
+                transactionId, startDate, endDate, paymentMethod);
+        List<Object[]> rows = budgetTransactionRepository.getAccountBreakdownByDateRange(startDate, endDate, blankToNull(paymentMethod), null);
+        List<AnalyticsAccountBreakdownResponse> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new AnalyticsAccountBreakdownResponse((String) r[0], (BigDecimal) r[1], (Long) r[2]));
+        }
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getAccountBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
     public List<AnalyticsPaymentMethodBreakdownResponse> getPaymentMethodBreakdown(String period, String account, String transactionId) {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
@@ -140,6 +218,23 @@ public class AnalyticsService {
         }
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getPaymentMethodBreakdown txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
+    public List<AnalyticsPaymentMethodBreakdownResponse> getPaymentMethodBreakdownByDateRange(LocalDate startDate, LocalDate endDate, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getPaymentMethodBreakdownByDateRange txId={} startDate={} endDate={} account={}",
+                transactionId, startDate, endDate, account);
+        List<Object[]> rows = budgetTransactionRepository.getPaymentMethodBreakdownByDateRange(startDate, endDate, blankToNull(account));
+        List<AnalyticsPaymentMethodBreakdownResponse> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new AnalyticsPaymentMethodBreakdownResponse((String) r[0], (BigDecimal) r[1], (Long) r[2]));
+        }
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getPaymentMethodBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
         return out;
     }
 
@@ -159,6 +254,23 @@ public class AnalyticsService {
     }
 
     @Transactional
+    public List<AnalyticsDailyTotalResponse> getDailyTotalsByDateRange(LocalDate startDate, LocalDate endDate, String paymentMethod, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getDailyTotalsByDateRange txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        List<Object[]> rows = budgetTransactionRepository.getDailyTotalsByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
+        List<AnalyticsDailyTotalResponse> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new AnalyticsDailyTotalResponse((LocalDate) r[0], (BigDecimal) r[1], (Long) r[2]));
+        }
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getDailyTotalsByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
     public List<AnalyticsCriticalityBreakdownResponse> getCriticalityBreakdown(String period, String paymentMethod, String account, String transactionId) {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
@@ -170,6 +282,23 @@ public class AnalyticsService {
         }
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getCriticalityBreakdown txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
+    public List<AnalyticsCriticalityBreakdownResponse> getCriticalityBreakdownByDateRange(LocalDate startDate, LocalDate endDate, String paymentMethod, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getCriticalityBreakdownByDateRange txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        List<Object[]> rows = budgetTransactionRepository.getCriticalityBreakdownByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
+        List<AnalyticsCriticalityBreakdownResponse> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new AnalyticsCriticalityBreakdownResponse((String) r[0], (BigDecimal) r[1], (Long) r[2]));
+        }
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getCriticalityBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
         return out;
     }
 
@@ -189,6 +318,22 @@ public class AnalyticsService {
     }
 
     @Transactional
+    public List<AnalyticsDuplicateResponse> getDuplicatesByDateRange(LocalDate startDate, LocalDate endDate, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getDuplicatesByDateRange txId={} startDate={} endDate={}", transactionId, startDate, endDate);
+        List<Object[]> rows = budgetTransactionRepository.findDuplicatesByRowHashByDateRange(startDate, endDate);
+        List<AnalyticsDuplicateResponse> out = new ArrayList<>();
+        for (Object[] r : rows) {
+            out.add(new AnalyticsDuplicateResponse((String) r[0], (Long) r[1], (BigDecimal) r[2]));
+        }
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getDuplicatesByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
     public List<BudgetTransaction> getUncategorized(String period, String transactionId) {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
@@ -196,6 +341,18 @@ public class AnalyticsService {
         List<BudgetTransaction> out = budgetTransactionRepository.findUncategorized(period);
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getUncategorized txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
+    public List<BudgetTransaction> getUncategorizedByDateRange(LocalDate startDate, LocalDate endDate, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getUncategorizedByDateRange txId={} startDate={} endDate={}", transactionId, startDate, endDate);
+        List<BudgetTransaction> out = budgetTransactionRepository.findUncategorizedByDateRange(startDate, endDate);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getUncategorizedByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out.size(), ms);
         return out;
     }
 
@@ -209,6 +366,20 @@ public class AnalyticsService {
         List<BudgetTransaction> out = budgetTransactionRepository.findTopByStatementPeriodOrderByAmountDesc(period, PageRequest.of(0, safeLimit));
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getOutliers txId={} period={} limit={} rows={} durationMs={}", transactionId, period, safeLimit, out.size(), ms);
+        return out;
+    }
+
+    @Transactional
+    public List<BudgetTransaction> getOutliersByDateRange(LocalDate startDate, LocalDate endDate, int limit, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getOutliersByDateRange txId={} startDate={} endDate={} limit={}", transactionId, startDate, endDate, limit);
+        int safeLimit = Math.max(0, Math.min(limit, 500));
+        if (safeLimit == 0) return List.of();
+        List<BudgetTransaction> out = budgetTransactionRepository.findByTransactionDateBetweenOrderByAmountDesc(startDate, endDate, PageRequest.of(0, safeLimit));
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getOutliersByDateRange txId={} startDate={} endDate={} limit={} rows={} durationMs={}",
+                transactionId, startDate, endDate, safeLimit, out.size(), ms);
         return out;
     }
 

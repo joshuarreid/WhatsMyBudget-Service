@@ -181,6 +181,30 @@ public class ProjectedTransactionService {
     }
 
     /**
+     * Get projected transactions by an inclusive transactionDate range, with optional filters.
+     * Rows with null transactionDate are excluded.
+     */
+    @Transactional
+    public ProjectedTransactionList getTransactionsByDateRange(LocalDate startDate,
+                                                               LocalDate endDate,
+                                                               String account,
+                                                               String category,
+                                                               String criticality,
+                                                               String paymentMethod,
+                                                               String transactionId) {
+        logger.info("getProjectedTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, criticality={}, paymentMethod={}",
+                transactionId, startDate, endDate, account, category, criticality, paymentMethod);
+
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate/endDate are required and must form a valid inclusive range");
+        }
+
+        List<ProjectedTransaction> results = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, paymentMethod);
+        logger.info("getProjectedTransactionsByDateRange successful. transactionId={}, resultCount={}", transactionId, results.size());
+        return new ProjectedTransactionList(results);
+    }
+
+    /**
      * Update an existing projected transaction.
      * Validates and ensures updated statementPeriod exists when provided.
      *
@@ -423,6 +447,57 @@ public class ProjectedTransactionService {
         } else {
             personalTxs = repository.findByFilters(statementPeriod, normalizedAccount, category, criticality, paymentMethod);
             java.util.List<com.example.wmbservice.model.ProjectedTransaction> jointRaw = repository.findByFilters(statementPeriod, "joint", category, criticality, paymentMethod);
+            for (com.example.wmbservice.model.ProjectedTransaction jt : jointRaw) {
+                com.example.wmbservice.model.ProjectedTransaction split = new com.example.wmbservice.model.ProjectedTransaction();
+                split.setId(jt.getId());
+                split.setName("[Split] " + jt.getName());
+                split.setAccount(account);
+                split.setAmount(jt.getAmount() != null ? jt.getAmount().divide(new java.math.BigDecimal("2.00"), 2, java.math.RoundingMode.HALF_UP) : null);
+                split.setCategory(jt.getCategory());
+                split.setCriticality(jt.getCriticality());
+                split.setTransactionDate(jt.getTransactionDate());
+                split.setStatus(jt.getStatus());
+                split.setPaymentMethod(jt.getPaymentMethod());
+                split.setStatementPeriod(jt.getStatementPeriod());
+                split.setCreatedTime(jt.getCreatedTime());
+                split.setRowHash(null);
+                jointTxs.add(split);
+            }
+        }
+        com.example.wmbservice.model.ProjectedTransactionList personalList = new com.example.wmbservice.model.ProjectedTransactionList(personalTxs);
+        com.example.wmbservice.model.ProjectedTransactionList jointList = new com.example.wmbservice.model.ProjectedTransactionList(jointTxs);
+        return new com.example.wmbservice.model.AccountProjectedTransactionList(personalList, jointList);
+    }
+
+    /**
+     * Returns personal and joint projected transactions for an account within an inclusive date range,
+     * splitting joint transactions for personal accounts.
+     */
+    public com.example.wmbservice.model.AccountProjectedTransactionList getAccountProjectedTransactionListByDateRange(
+            String account,
+            LocalDate startDate,
+            LocalDate endDate,
+            String category,
+            String criticality,
+            String paymentMethod,
+            String transactionId
+    ) {
+        logger.info("getAccountProjectedTransactionListByDateRange entered. transactionId={}, account={}, startDate={}, endDate={}",
+                transactionId, account, startDate, endDate);
+
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate/endDate are required and must form a valid inclusive range");
+        }
+
+        java.util.List<com.example.wmbservice.model.ProjectedTransaction> personalTxs = new java.util.ArrayList<>();
+        java.util.List<com.example.wmbservice.model.ProjectedTransaction> jointTxs = new java.util.ArrayList<>();
+
+        String normalizedAccount = account == null ? null : account.trim().toLowerCase();
+        if ("joint".equalsIgnoreCase(normalizedAccount)) {
+            jointTxs = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
+        } else {
+            personalTxs = repository.findByDateRangeFilters(startDate, endDate, normalizedAccount, category, criticality, paymentMethod);
+            java.util.List<com.example.wmbservice.model.ProjectedTransaction> jointRaw = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
             for (com.example.wmbservice.model.ProjectedTransaction jt : jointRaw) {
                 com.example.wmbservice.model.ProjectedTransaction split = new com.example.wmbservice.model.ProjectedTransaction();
                 split.setId(jt.getId());

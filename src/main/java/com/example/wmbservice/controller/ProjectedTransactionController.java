@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -95,6 +97,44 @@ public class ProjectedTransactionController {
                     .body(result);
         } catch (Exception e) {
             logger.error("Error fetching projected transactions. transactionId={}, error={}", transactionId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "LIST_ERROR", "Unexpected error", transactionId));
+        }
+    }
+
+    /**
+     * Overload: get projected transactions by inclusive transactionDate range.
+     */
+    @GetMapping(params = {"startDate", "endDate"})
+    public ResponseEntity<?> getTransactionsByDateRange(
+            @RequestParam(value = "startDate") String startDate,
+            @RequestParam(value = "endDate") String endDate,
+            @RequestParam(value = "account", required = false) String account,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+
+        logger.info("getProjectedTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, criticality={}, paymentMethod={}",
+                transactionId, startDate, endDate, account, category, criticality, paymentMethod);
+
+        try {
+            LocalDate s = LocalDate.parse(startDate.trim());
+            LocalDate e = LocalDate.parse(endDate.trim());
+            ProjectedTransactionList result = projectedTransactionService.getTransactionsByDateRange(
+                    s, e, account, category, criticality, paymentMethod, transactionId);
+            return ResponseEntity.ok()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(result);
+        } catch (DateTimeParseException | IllegalArgumentException e) {
+            logger.warn("Invalid date range in getProjectedTransactionsByDateRange. transactionId={}, startDate={}, endDate={}, error={}",
+                    transactionId, startDate, endDate, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "BAD_REQUEST", e.getMessage(), transactionId));
+        } catch (Exception e) {
+            logger.error("Error fetching projected transactions by date range. transactionId={}, error={}", transactionId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .header("X-Transaction-ID", transactionId)
                     .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "LIST_ERROR", "Unexpected error", transactionId));
@@ -258,6 +298,43 @@ public class ProjectedTransactionController {
                     .body(result);
         } catch (Exception e) {
             logger.error("Error fetching account projected transactions. transactionId={}, error={}", transactionId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "ACCOUNT_LIST_ERROR", "Unexpected error", transactionId));
+        }
+    }
+
+    /**
+     * Overload: account projected transactions by inclusive date range.
+     */
+    @GetMapping(value = "/account", params = {"account", "startDate", "endDate"})
+    public ResponseEntity<?> getAccountProjectedTransactionListByDateRange(
+            @RequestParam(value = "account") String account,
+            @RequestParam(value = "startDate") String startDate,
+            @RequestParam(value = "endDate") String endDate,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+
+        logger.info("getAccountProjectedTransactionListByDateRange entered. transactionId={}, account={}, startDate={}, endDate={}",
+                transactionId, account, startDate, endDate);
+        try {
+            LocalDate s = LocalDate.parse(startDate.trim());
+            LocalDate e = LocalDate.parse(endDate.trim());
+            com.example.wmbservice.model.AccountProjectedTransactionList result = projectedTransactionService.getAccountProjectedTransactionListByDateRange(
+                    account, s, e, category, criticality, paymentMethod, transactionId);
+            return ResponseEntity.ok()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(result);
+        } catch (DateTimeParseException | IllegalArgumentException e) {
+            logger.warn("Invalid date range in getAccountProjectedTransactionListByDateRange. transactionId={}, account={}, startDate={}, endDate={}, error={}",
+                    transactionId, account, startDate, endDate, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "BAD_REQUEST", e.getMessage(), transactionId));
+        } catch (Exception e) {
+            logger.error("Error fetching account projected transactions by date range. transactionId={}, error={}", transactionId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .header("X-Transaction-ID", transactionId)
                     .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "ACCOUNT_LIST_ERROR", "Unexpected error", transactionId));

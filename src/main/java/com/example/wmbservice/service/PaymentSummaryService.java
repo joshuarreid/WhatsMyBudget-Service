@@ -2,13 +2,13 @@ package com.example.wmbservice.service;
 
 import com.example.wmbservice.model.BudgetTransaction;
 import com.example.wmbservice.model.PaymentSummaryResponse;
-import com.example.wmbservice.service.BudgetTransactionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -119,6 +119,112 @@ public class PaymentSummaryService {
                 }
                 creditCardCategoryBreakdowns.put(normalizedCard, categoryTotals);
             }
+            summaries.add(new PaymentSummaryResponse(normalizedAccountMap.get(normalizedAccount), creditCardTotals, creditCardCategoryBreakdowns));
+        }
+        return summaries;
+    }
+
+    /**
+     * Same as getPaymentSummary, but uses an inclusive transactionDate range instead of statementPeriod.
+     */
+    public List<PaymentSummaryResponse> getPaymentSummaryByDateRange(List<String> accountList, LocalDate startDate, LocalDate endDate, String transactionId) {
+        logger.info("getPaymentSummaryByDateRange (service) entered. transactionId={}, startDate={}, endDate={}, accounts={}",
+                transactionId, startDate, endDate, accountList);
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate/endDate are required and must form a valid inclusive range");
+        }
+
+        List<BudgetTransaction> allTx = budgetTransactionService.getTransactionsByDateRange(
+                startDate, endDate, null, null, null, null, transactionId).getTransactions();
+
+        // Reuse the existing logic by temporarily treating it as a single period's worth of data
+        // (the math is based only on transaction fields).
+        List<PaymentSummaryResponse> summaries = new ArrayList<>();
+        Map<String, String> normalizedAccountMap = accountList.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(
+                        acc -> acc.trim().toLowerCase(),
+                        acc -> acc,
+                        (a, b) -> a
+                ));
+
+        Set<String> splitAccounts = new HashSet<>(Arrays.asList("anna", "josh"));
+        for (String account : accountList) {
+            if (account == null) continue;
+            String normalizedAccount = account.trim().toLowerCase();
+            Set<String> paymentMethods = allTx.stream()
+                    .map(tx -> tx.getPaymentMethod() == null ? "" : tx.getPaymentMethod().trim().toLowerCase())
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+
+            Map<String, BigDecimal> creditCardTotals = new HashMap<>();
+            Map<String, Map<String, BigDecimal>> creditCardCategoryBreakdowns = new HashMap<>();
+
+            for (String card : paymentMethods) {
+                String normalizedCard = card.trim().toLowerCase();
+                BigDecimal direct = allTx.stream()
+                        .filter(tx -> {
+                            String txAccount = tx.getAccount();
+                            String txCard = tx.getPaymentMethod();
+                            txAccount = txAccount == null ? "" : txAccount.trim().toLowerCase();
+                            txCard = txCard == null ? "" : txCard.trim().toLowerCase();
+                            return txAccount.equals(normalizedAccount) && txCard.equals(normalizedCard);
+                        })
+                        .map(tx -> tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                BigDecimal joint = allTx.stream()
+                        .filter(tx -> {
+                            String txAccount = tx.getAccount();
+                            String txCard = tx.getPaymentMethod();
+                            txAccount = txAccount == null ? "" : txAccount.trim().toLowerCase();
+                            txCard = txCard == null ? "" : txCard.trim().toLowerCase();
+                            return txAccount.equals("joint") && txCard.equals(normalizedCard);
+                        })
+                        .map(tx -> tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                BigDecimal total = direct;
+                if (splitAccounts.contains(normalizedAccount)) {
+                    total = total.add(joint.divide(new BigDecimal("2.0"), 2, RoundingMode.HALF_UP));
+                }
+                creditCardTotals.put(normalizedCard, total);
+
+                Map<String, BigDecimal> categoryTotals = new HashMap<>();
+                allTx.stream()
+                        .filter(tx -> {
+                            String txAccount = tx.getAccount();
+                            String txCard = tx.getPaymentMethod();
+                            txAccount = txAccount == null ? "" : txAccount.trim().toLowerCase();
+                            txCard = txCard == null ? "" : txCard.trim().toLowerCase();
+                            return txAccount.equals(normalizedAccount) && txCard.equals(normalizedCard);
+                        })
+                        .forEach(tx -> {
+                            String category = tx.getCategory() == null ? "" : tx.getCategory().trim().toLowerCase();
+                            BigDecimal amt = tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO;
+                            categoryTotals.put(category, categoryTotals.getOrDefault(category, BigDecimal.ZERO).add(amt));
+                        });
+
+                if (splitAccounts.contains(normalizedAccount)) {
+                    allTx.stream()
+                            .filter(tx -> {
+                                String txAccount = tx.getAccount();
+                                String txCard = tx.getPaymentMethod();
+                                txAccount = txAccount == null ? "" : txAccount.trim().toLowerCase();
+                                txCard = txCard == null ? "" : txCard.trim().toLowerCase();
+                                return txAccount.equals("joint") && txCard.equals(normalizedCard);
+                            })
+                            .forEach(tx -> {
+                                String category = tx.getCategory() == null ? "" : tx.getCategory().trim().toLowerCase();
+                                BigDecimal amt = tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO;
+                                BigDecimal splitAmt = amt.divide(new BigDecimal("2.0"), 2, RoundingMode.HALF_UP);
+                                categoryTotals.put(category, categoryTotals.getOrDefault(category, BigDecimal.ZERO).add(splitAmt));
+                            });
+                }
+
+                creditCardCategoryBreakdowns.put(normalizedCard, categoryTotals);
+            }
+
             summaries.add(new PaymentSummaryResponse(normalizedAccountMap.get(normalizedAccount), creditCardTotals, creditCardCategoryBreakdowns));
         }
         return summaries;

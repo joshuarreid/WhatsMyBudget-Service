@@ -14,6 +14,7 @@ CREATE TABLE budget_transactions (
     statement_period VARCHAR(32) NOT NULL,
     row_hash VARCHAR(64) NULL,
     INDEX idx_statement_period (statement_period),
+    INDEX idx_transaction_date (transaction_date),
     INDEX idx_account (account),
     INDEX idx_payment_method (payment_method),
     INDEX idx_category (category),
@@ -33,6 +34,7 @@ CREATE TABLE projected_transactions (
     payment_method VARCHAR(64) NOT NULL,
     statement_period VARCHAR(32) NOT NULL,
     INDEX idx_statement_period (statement_period),
+    INDEX idx_transaction_date (transaction_date),
     INDEX idx_account (account),
     INDEX idx_payment_method (payment_method),
     INDEX idx_category (category)

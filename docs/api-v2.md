@@ -96,10 +96,16 @@ Base path: `/api/v2/transactions`
 
 Query params (all optional):
 - `statementPeriod`
+- `startDate` *(ISO date; requires `endDate`)*
+- `endDate` *(ISO date; requires `startDate`)*
 - `account`
 - `category`
 - `criticality`
 - `paymentMethod`
+
+Notes:
+- Provide **either** `statementPeriod` **or** (`startDate` + `endDate`).
+- Date ranges are **inclusive**.
 
 Auth:
 - `Authorization: Bearer <jwt>`
@@ -125,9 +131,15 @@ Responses:
 Query params:
 - `account` *(required)*
 - `statementPeriod` *(optional)*
+- `startDate` *(optional; requires `endDate`)*
+- `endDate` *(optional; requires `startDate`)*
 - `category` *(optional)*
 - `criticality` *(optional)*
 - `paymentMethod` *(optional)*
+
+Notes:
+- Provide **either** `statementPeriod` **or** (`startDate` + `endDate`).
+- Date ranges are **inclusive**.
 
 Response:
 - `200 OK` → `AccountBudgetTransactionList`
@@ -156,10 +168,16 @@ Responses:
 
 Query params (all optional):
 - `statementPeriod`
+- `startDate` *(ISO date; requires `endDate`)*
+- `endDate` *(ISO date; requires `startDate`)*
 - `account`
 - `category`
 - `criticality`
 - `paymentMethod`
+
+Notes:
+- Provide **either** `statementPeriod` **or** (`startDate` + `endDate`).
+- Date ranges are **inclusive**.
 
 Response:
 - `200 OK` → `ProjectedTransactionList`

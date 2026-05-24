@@ -9,6 +9,8 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -98,6 +100,45 @@ public class BudgetTransactionController {
         }
     }
 
+    /**
+     * Overload: list transactions by inclusive transactionDate range.
+     * Dates must be ISO-8601 (YYYY-MM-DD).
+     */
+    @GetMapping(params = {"startDate", "endDate"})
+    public ResponseEntity<?> getTransactionsByDateRange(
+            @RequestParam(value = "startDate") String startDate,
+            @RequestParam(value = "endDate") String endDate,
+            @RequestParam(value = "account", required = false) String account,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+
+        logger.info("getTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, paymentMethod={}",
+                transactionId, startDate, endDate, account, category, paymentMethod);
+
+        try {
+            LocalDate s = LocalDate.parse(startDate.trim());
+            LocalDate e = LocalDate.parse(endDate.trim());
+            BudgetTransactionList result = budgetTransactionService.getTransactionsByDateRange(
+                    s, e, account, category, criticality, paymentMethod, transactionId);
+            return ResponseEntity.ok()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(result);
+        } catch (DateTimeParseException | IllegalArgumentException e) {
+            logger.warn("Invalid date range in getTransactionsByDateRange. transactionId={}, startDate={}, endDate={}, error={}",
+                    transactionId, startDate, endDate, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "BAD_REQUEST", e.getMessage(), transactionId));
+        } catch (Exception e) {
+            logger.error("Error fetching transactions by date range. transactionId={}, error={}", transactionId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "LIST_ERROR", "Unexpected error", transactionId));
+        }
+    }
+
 
     /**
      * Get transactions for a specific account, including half of joint transactions.
@@ -130,6 +171,44 @@ public class BudgetTransactionController {
                     .body(result);
         } catch (Exception e) {
             logger.error("Error in getTransactionsForAccount. transactionId={}, error={}", transactionId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "ACCOUNT_TX_ERROR", "Unexpected error", transactionId));
+        }
+    }
+
+    /**
+     * Overload: account view by inclusive transactionDate range.
+     */
+    @GetMapping(value = "/account", params = {"account", "startDate", "endDate"})
+    public ResponseEntity<?> getTransactionsForAccountByDateRange(
+            @RequestParam("account") String account,
+            @RequestParam("startDate") String startDate,
+            @RequestParam("endDate") String endDate,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId
+    ) {
+        logger.info("getTransactionsForAccountByDateRange entered. transactionId={}, account={}, startDate={}, endDate={}",
+                transactionId, account, startDate, endDate);
+
+        try {
+            LocalDate s = LocalDate.parse(startDate.trim());
+            LocalDate e = LocalDate.parse(endDate.trim());
+            AccountBudgetTransactionList result = budgetTransactionService.getAccountBudgetTransactionListByDateRange(
+                    account, s, e, category, criticality, paymentMethod, transactionId);
+            return ResponseEntity.ok()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(result);
+        } catch (DateTimeParseException | IllegalArgumentException e) {
+            logger.warn("Invalid date range in getTransactionsForAccountByDateRange. transactionId={}, account={}, startDate={}, endDate={}, error={}",
+                    transactionId, account, startDate, endDate, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "BAD_REQUEST", e.getMessage(), transactionId));
+        } catch (Exception e) {
+            logger.error("Error in getTransactionsForAccountByDateRange. transactionId={}, error={}", transactionId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .header("X-Transaction-ID", transactionId)
                     .body(new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "ACCOUNT_TX_ERROR", "Unexpected error", transactionId));

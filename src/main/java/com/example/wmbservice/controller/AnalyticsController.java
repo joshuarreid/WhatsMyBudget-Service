@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,6 +36,15 @@ public class AnalyticsController {
             return UUID.randomUUID().toString().replace("-", "");
         }
         return transactionId;
+    }
+
+    private static LocalDate parseIsoDate(String value) {
+        if (value == null || value.isBlank()) return null;
+        return LocalDate.parse(value.trim());
+    }
+
+    private static boolean isInvalidRange(LocalDate start, LocalDate end) {
+        return start == null || end == null || start.isAfter(end);
     }
 
     /**
@@ -83,6 +94,43 @@ public class AnalyticsController {
     }
 
     /**
+     * Overview for a custom date range (inclusive).
+     */
+    @GetMapping("/range/overview")
+    public ResponseEntity<AnalyticsPeriodOverviewResponse> getDateRangeOverview(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(required = false) String account,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/overview txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/overview txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            AnalyticsPeriodOverviewResponse result = analyticsService.getDateRangeOverview(s, e, paymentMethod, account, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/overview txId={} status=200 total={} count={} durationMs={}",
+                    transactionId,
+                    result != null ? result.getTotalAmount() : null,
+                    result != null ? result.getTransactionCount() : null,
+                    ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/overview txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+    }
+
+    /**
      * Sum and count by category for a period.
      */
     @GetMapping("/periods/{period}/categories")
@@ -103,6 +151,39 @@ public class AnalyticsController {
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics] <- GET /periods/{}/categories txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+    }
+
+    /**
+     * Sum and count by category for a custom date range (inclusive).
+     */
+    @GetMapping("/range/categories")
+    public ResponseEntity<List<AnalyticsCategoryBreakdownResponse>> getCategoryBreakdownByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(required = false) String account,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/categories txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/categories txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            List<AnalyticsCategoryBreakdownResponse> result = analyticsService.getCategoryBreakdownByDateRange(s, e, paymentMethod, account, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/categories txId={} status=200 rows={} durationMs={}", transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/categories txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
     }
 
     /**
@@ -132,6 +213,42 @@ public class AnalyticsController {
     }
 
     /**
+     * Top N categories by spend for a custom date range (inclusive).
+     */
+    @GetMapping("/range/categories/top")
+    public ResponseEntity<List<AnalyticsCategoryBreakdownResponse>> getTopCategoriesByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(required = false) String account,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/categories/top txId={} startDate={} endDate={} limit={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, limit, paymentMethod, account);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/categories/top txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            int safeLimit = Math.max(0, Math.min(limit, 100));
+            List<AnalyticsCategoryBreakdownResponse> result = analyticsService.getTopCategoriesByDateRange(s, e, safeLimit, paymentMethod, account, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/categories/top txId={} status=200 limit={} rows={} durationMs={}",
+                    transactionId, safeLimit, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/categories/top txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+    }
+
+    /**
      * Sum and count by account for a period.
      */
     @GetMapping("/periods/{period}/accounts")
@@ -154,6 +271,38 @@ public class AnalyticsController {
     }
 
     /**
+     * Sum and count by account for a custom date range (inclusive).
+     */
+    @GetMapping("/range/accounts")
+    public ResponseEntity<List<AnalyticsAccountBreakdownResponse>> getAccountBreakdownByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/accounts txId={} startDate={} endDate={} paymentMethod={}",
+                transactionId, startDate, endDate, paymentMethod);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/accounts txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            List<AnalyticsAccountBreakdownResponse> result = analyticsService.getAccountBreakdownByDateRange(s, e, paymentMethod, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/accounts txId={} status=200 rows={} durationMs={}", transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/accounts txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+    }
+
+    /**
      * Sum and count by payment method for a period.
      */
     @GetMapping("/periods/{period}/payment-methods")
@@ -173,6 +322,38 @@ public class AnalyticsController {
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics] <- GET /periods/{}/payment-methods txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+    }
+
+    /**
+     * Sum and count by payment method for a custom date range (inclusive).
+     */
+    @GetMapping("/range/payment-methods")
+    public ResponseEntity<List<AnalyticsPaymentMethodBreakdownResponse>> getPaymentMethodBreakdownByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String account,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/payment-methods txId={} startDate={} endDate={} account={}",
+                transactionId, startDate, endDate, account);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/payment-methods txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            List<AnalyticsPaymentMethodBreakdownResponse> result = analyticsService.getPaymentMethodBreakdownByDateRange(s, e, account, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/payment-methods txId={} status=200 rows={} durationMs={}", transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/payment-methods txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
     }
 
     /**
@@ -199,6 +380,39 @@ public class AnalyticsController {
     }
 
     /**
+     * Daily totals for a custom date range (inclusive).
+     */
+    @GetMapping("/range/daily")
+    public ResponseEntity<List<AnalyticsDailyTotalResponse>> getDailyTotalsByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(required = false) String account,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/daily txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/daily txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            List<AnalyticsDailyTotalResponse> result = analyticsService.getDailyTotalsByDateRange(s, e, paymentMethod, account, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/daily txId={} status=200 rows={} durationMs={}", transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/daily txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+    }
+
+    /**
      * Sum and count by criticality for a period.
      */
     @GetMapping("/periods/{period}/criticality")
@@ -219,6 +433,39 @@ public class AnalyticsController {
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics] <- GET /periods/{}/criticality txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+    }
+
+    /**
+     * Sum and count by criticality for a custom date range (inclusive).
+     */
+    @GetMapping("/range/criticality")
+    public ResponseEntity<List<AnalyticsCriticalityBreakdownResponse>> getCriticalityBreakdownByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String paymentMethod,
+            @RequestParam(required = false) String account,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/criticality txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/criticality txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            List<AnalyticsCriticalityBreakdownResponse> result = analyticsService.getCriticalityBreakdownByDateRange(s, e, paymentMethod, account, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/criticality txId={} status=200 rows={} durationMs={}", transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/criticality txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
     }
 
     /**
@@ -243,6 +490,36 @@ public class AnalyticsController {
     }
 
     /**
+     * Find duplicate transactions by row_hash for a custom date range (inclusive).
+     */
+    @GetMapping("/range/duplicates")
+    public ResponseEntity<List<AnalyticsDuplicateResponse>> getDuplicatesByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/duplicates txId={} startDate={} endDate={}", transactionId, startDate, endDate);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/duplicates txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            List<AnalyticsDuplicateResponse> result = analyticsService.getDuplicatesByDateRange(s, e, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/duplicates txId={} status=200 rows={} durationMs={}", transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/duplicates txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+    }
+
+    /**
      * Find uncategorized transactions for a period.
      */
     @GetMapping("/periods/{period}/uncategorized")
@@ -261,6 +538,36 @@ public class AnalyticsController {
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics] <- GET /periods/{}/uncategorized txId={} status=200 rows={} durationMs={}", period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+    }
+
+    /**
+     * Find uncategorized transactions for a custom date range (inclusive).
+     */
+    @GetMapping("/range/uncategorized")
+    public ResponseEntity<List<BudgetTransaction>> getUncategorizedByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/uncategorized txId={} startDate={} endDate={}", transactionId, startDate, endDate);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/uncategorized txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            List<BudgetTransaction> result = analyticsService.getUncategorizedByDateRange(s, e, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/uncategorized txId={} status=200 rows={} durationMs={}", transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/uncategorized txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
     }
 
     /**
@@ -285,5 +592,38 @@ public class AnalyticsController {
         logger.info("[analytics] <- GET /periods/{}/outliers txId={} status=200 limit={} rows={} durationMs={}",
                 period, transactionId, safeLimit, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+    }
+
+    /**
+     * Find outlier (largest) transactions for a custom date range (inclusive).
+     */
+    @GetMapping("/range/outliers")
+    public ResponseEntity<List<BudgetTransaction>> getOutliersByDateRange(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /range/outliers txId={} startDate={} endDate={} limit={}", transactionId, startDate, endDate, limit);
+        try {
+            LocalDate s = parseIsoDate(startDate);
+            LocalDate e = parseIsoDate(endDate);
+            if (isInvalidRange(s, e)) {
+                long ms = (System.nanoTime() - startNs) / 1_000_000;
+                logger.warn("[analytics] <- GET /range/outliers txId={} status=400 durationMs={}", transactionId, ms);
+                return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+            }
+            int safeLimit = Math.max(0, Math.min(limit, 200));
+            List<BudgetTransaction> result = analyticsService.getOutliersByDateRange(s, e, safeLimit, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /range/outliers txId={} status=200 limit={} rows={} durationMs={}",
+                    transactionId, safeLimit, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (DateTimeParseException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /range/outliers txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
     }
 }

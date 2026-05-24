@@ -148,6 +148,29 @@ public class BudgetTransactionService {
         return new BudgetTransactionList(results);
     }
 
+    /**
+     * Get transactions by an inclusive transactionDate range, with optional filters.
+     */
+    @Transactional
+    public BudgetTransactionList getTransactionsByDateRange(LocalDate startDate,
+                                                           LocalDate endDate,
+                                                           String account,
+                                                           String category,
+                                                           String criticality,
+                                                           String paymentMethod,
+                                                           String transactionId) {
+        logger.info("getTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, criticality={}, paymentMethod={}",
+                transactionId, startDate, endDate, account, category, criticality, paymentMethod);
+
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate/endDate are required and must form a valid inclusive range");
+        }
+
+        List<BudgetTransaction> results = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, paymentMethod);
+        logger.info("getTransactionsByDateRange successful. transactionId={}, resultCount={}", transactionId, results.size());
+        return new BudgetTransactionList(results);
+    }
+
 
     /**
      * Get transactions for a specific account, separated into personal and joint lists for AccountBudgetTransactionList.
@@ -174,6 +197,57 @@ public class BudgetTransactionService {
 
             // Joint transactions, split for this account
             List<BudgetTransaction> jointRaw = repository.findByFilters(statementPeriod, "joint", category, criticality, paymentMethod);
+            for (BudgetTransaction jt : jointRaw) {
+                BudgetTransaction split = new BudgetTransaction();
+                split.setId(jt.getId());
+                split.setName("[Split] " + jt.getName());
+                split.setAccount(account);
+                split.setAmount(jt.getAmount() != null ? jt.getAmount().divide(new java.math.BigDecimal("2.00"), 2, java.math.RoundingMode.HALF_UP) : null);
+                split.setCategory(jt.getCategory());
+                split.setCriticality(jt.getCriticality());
+                split.setTransactionDate(jt.getTransactionDate());
+                split.setStatus(jt.getStatus());
+                split.setPaymentMethod(jt.getPaymentMethod());
+                split.setStatementPeriod(jt.getStatementPeriod());
+                split.setCreatedTime(jt.getCreatedTime());
+                split.setRowHash(null);
+                jointTxs.add(split);
+            }
+        }
+
+        BudgetTransactionList personalList = new BudgetTransactionList(personalTxs);
+        BudgetTransactionList jointList = new BudgetTransactionList(jointTxs);
+        return new AccountBudgetTransactionList(personalList, jointList);
+    }
+
+    /**
+     * Account view for an inclusive transactionDate range.
+     */
+    public AccountBudgetTransactionList getAccountBudgetTransactionListByDateRange(
+            String account,
+            LocalDate startDate,
+            LocalDate endDate,
+            String category,
+            String criticality,
+            String paymentMethod,
+            String transactionId
+    ) {
+        logger.info("getAccountBudgetTransactionListByDateRange entered. transactionId={}, account={}, startDate={}, endDate={}",
+                transactionId, account, startDate, endDate);
+
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate/endDate are required and must form a valid inclusive range");
+        }
+
+        List<BudgetTransaction> personalTxs = new ArrayList<>();
+        List<BudgetTransaction> jointTxs = new ArrayList<>();
+
+        if ("joint".equalsIgnoreCase(account)) {
+            jointTxs = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
+        } else {
+            personalTxs = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, paymentMethod);
+
+            List<BudgetTransaction> jointRaw = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
             for (BudgetTransaction jt : jointRaw) {
                 BudgetTransaction split = new BudgetTransaction();
                 split.setId(jt.getId());
