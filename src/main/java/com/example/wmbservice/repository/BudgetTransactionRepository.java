@@ -281,8 +281,8 @@ public interface BudgetTransactionRepository extends JpaRepository<BudgetTransac
     /**
      * Largest transactions for a period.
      */
-    List<BudgetTransaction> findTopByStatementPeriodOrderByAmountDesc(String statementPeriod,
-                                                                      org.springframework.data.domain.Pageable pageable);
+    List<BudgetTransaction> findByStatementPeriodOrderByAmountDesc(String statementPeriod,
+                                                                   org.springframework.data.domain.Pageable pageable);
 
     /**
      * Largest transactions for a date range.

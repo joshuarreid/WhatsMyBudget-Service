@@ -24,10 +24,10 @@ import java.util.Objects;
 @Table(
         name = "budget_transactions",
         indexes = {
-                @Index(name = "idx_statement_period", columnList = "statement_period"),
-                @Index(name = "idx_account", columnList = "account"),
-                @Index(name = "idx_payment_method", columnList = "payment_method"),
-                @Index(name = "idx_category", columnList = "category"),
+                @Index(name = "idx_budget_statement_period", columnList = "statement_period"),
+                @Index(name = "idx_budget_account", columnList = "account"),
+                @Index(name = "idx_budget_payment_method", columnList = "payment_method"),
+                @Index(name = "idx_budget_category", columnList = "category"),
                 @Index(name = "uniq_transaction_hash", columnList = "row_hash, statement_period", unique = true)
         }
 )

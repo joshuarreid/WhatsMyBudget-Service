@@ -363,7 +363,7 @@ public class AnalyticsService {
         logger.info("[analytics.svc] -> getOutliers txId={} period={} limit={}", transactionId, period, limit);
         int safeLimit = Math.max(0, Math.min(limit, 500));
         if (safeLimit == 0) return List.of();
-        List<BudgetTransaction> out = budgetTransactionRepository.findTopByStatementPeriodOrderByAmountDesc(period, PageRequest.of(0, safeLimit));
+        List<BudgetTransaction> out = budgetTransactionRepository.findByStatementPeriodOrderByAmountDesc(period, PageRequest.of(0, safeLimit));
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getOutliers txId={} period={} limit={} rows={} durationMs={}", transactionId, period, safeLimit, out.size(), ms);
         return out;

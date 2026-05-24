@@ -3,6 +3,7 @@ package com.example.wmbservice.controller;
 import com.example.wmbservice.dto.*;
 import com.example.wmbservice.model.BudgetTransaction;
 import com.example.wmbservice.service.AnalyticsService;
+import com.example.wmbservice.service.StatementPeriodSummaryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -26,9 +27,12 @@ public class AnalyticsController {
     private static final Logger logger = LoggerFactory.getLogger(AnalyticsController.class);
 
     private final AnalyticsService analyticsService;
+    private final StatementPeriodSummaryService statementPeriodSummaryService;
 
-    public AnalyticsController(AnalyticsService analyticsService) {
+    public AnalyticsController(AnalyticsService analyticsService,
+                               StatementPeriodSummaryService statementPeriodSummaryService) {
         this.analyticsService = analyticsService;
+        this.statementPeriodSummaryService = statementPeriodSummaryService;
     }
 
     private static String ensureTransactionId(String transactionId) {
@@ -623,6 +627,61 @@ public class AnalyticsController {
         } catch (DateTimeParseException ex) {
             long ms = (System.nanoTime() - startNs) / 1_000_000;
             logger.warn("[analytics] <- GET /range/outliers txId={} status=400 badDate durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+    }
+
+    /**
+     * Persisted/live analytics summary for a single statement period.
+     */
+    @GetMapping("/summaries/{period}")
+    public ResponseEntity<AnalyticsStatementPeriodSummaryResponse> getStatementPeriodSummary(
+            @PathVariable String period,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /summaries/{} txId={}", period, transactionId);
+        if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /summaries/<blank> txId={} status=400 durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+        try {
+            AnalyticsStatementPeriodSummaryResponse result = statementPeriodSummaryService.getSummary(period, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /summaries/{} txId={} status=200 generatedAt={} durationMs={}",
+                    period, transactionId, result != null ? result.getGeneratedAt() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (IllegalArgumentException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /summaries/{} txId={} status=400 error={} durationMs={}",
+                    period, transactionId, ex.getMessage(), ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+    }
+
+    /**
+     * Persisted/live analytics summaries for an inclusive statement period range.
+     */
+    @GetMapping(value = "/summaries", params = {"startPeriod", "endPeriod"})
+    public ResponseEntity<List<AnalyticsStatementPeriodSummaryResponse>> getStatementPeriodSummariesByRange(
+            @RequestParam String startPeriod,
+            @RequestParam String endPeriod,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /summaries txId={} startPeriod={} endPeriod={}", transactionId, startPeriod, endPeriod);
+        try {
+            List<AnalyticsStatementPeriodSummaryResponse> result =
+                    statementPeriodSummaryService.getSummariesByPeriodRange(startPeriod, endPeriod, transactionId);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics] <- GET /summaries txId={} status=200 rows={} durationMs={}",
+                    transactionId, result != null ? result.size() : null, ms);
+            return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+        } catch (IllegalArgumentException ex) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /summaries txId={} status=400 error={} durationMs={}",
+                    transactionId, ex.getMessage(), ms);
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
     }

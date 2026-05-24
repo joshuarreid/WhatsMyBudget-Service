@@ -13,12 +13,12 @@ CREATE TABLE budget_transactions (
     payment_method VARCHAR(64) NOT NULL,
     statement_period VARCHAR(32) NOT NULL,
     row_hash VARCHAR(64) NULL,
-    INDEX idx_statement_period (statement_period),
-    INDEX idx_transaction_date (transaction_date),
-    INDEX idx_account (account),
-    INDEX idx_payment_method (payment_method),
-    INDEX idx_category (category),
-    INDEX idx_row_hash (row_hash)
+    INDEX idx_budget_statement_period (statement_period),
+    INDEX idx_budget_transaction_date (transaction_date),
+    INDEX idx_budget_account (account),
+    INDEX idx_budget_payment_method (payment_method),
+    INDEX idx_budget_category (category),
+    INDEX idx_budget_row_hash (row_hash)
 );
 
 CREATE TABLE projected_transactions (
@@ -33,11 +33,11 @@ CREATE TABLE projected_transactions (
     created_time DATETIME,
     payment_method VARCHAR(64) NOT NULL,
     statement_period VARCHAR(32) NOT NULL,
-    INDEX idx_statement_period (statement_period),
-    INDEX idx_transaction_date (transaction_date),
-    INDEX idx_account (account),
-    INDEX idx_payment_method (payment_method),
-    INDEX idx_category (category)
+    INDEX idx_projected_statement_period (statement_period),
+    INDEX idx_projected_transaction_date (transaction_date),
+    INDEX idx_projected_account (account),
+    INDEX idx_projected_payment_method (payment_method),
+    INDEX idx_projected_category (category)
 );
 
 CREATE TABLE statement_periods (
@@ -45,7 +45,10 @@ CREATE TABLE statement_periods (
     period_name VARCHAR(32) NOT NULL UNIQUE,
     start_date DATE,
     end_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_statement_periods_period_name (period_name),
+    INDEX idx_statement_periods_start_date (start_date),
+    INDEX idx_statement_periods_end_date (end_date)
 );
 
 CREATE TABLE local_cache (
@@ -62,10 +65,10 @@ CREATE TABLE archived_statement_summary (
     user_name VARCHAR(64) NOT NULL,
     amount_owed DECIMAL(12,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_statement_period (statement_period),
-    INDEX idx_payment_method (payment_method),
-    INDEX idx_user (user_name),
-    UNIQUE KEY uniq_summary (statement_period, payment_method, user_name)
+    INDEX idx_archived_summary_statement_period (statement_period),
+    INDEX idx_archived_summary_payment_method (payment_method),
+    INDEX idx_archived_summary_user (user_name),
+    UNIQUE KEY uniq_archived_summary_period_payment_user (statement_period, payment_method, user_name)
 );
 
 CREATE TABLE archived_statement_category_summary (
@@ -75,8 +78,30 @@ CREATE TABLE archived_statement_category_summary (
     account VARCHAR(32) NOT NULL,
     category VARCHAR(128) NOT NULL,
     total_amount DECIMAL(12,2) NOT NULL,
-    INDEX idx_period_card_account (statement_period, payment_method, account),
-    INDEX idx_category (category)
+    INDEX idx_archived_category_period_payment_account (statement_period, payment_method, account),
+    INDEX idx_archived_category_category (category)
+);
+
+CREATE TABLE statement_period_summaries (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    statement_period VARCHAR(32) NOT NULL,
+    period_start_date DATE,
+    period_end_date DATE,
+    total_amount DECIMAL(12,2) NOT NULL,
+    transaction_count BIGINT NOT NULL,
+    essential_amount DECIMAL(12,2) NOT NULL,
+    essential_count BIGINT NOT NULL,
+    nonessential_amount DECIMAL(12,2) NOT NULL,
+    nonessential_count BIGINT NOT NULL,
+    category_breakdown_json LONGTEXT,
+    criticality_breakdown_json LONGTEXT,
+    account_breakdown_json LONGTEXT,
+    payment_method_breakdown_json LONGTEXT,
+    outliers_json LONGTEXT,
+    generated_at DATETIME NOT NULL,
+    UNIQUE KEY uniq_statement_period_summary_period (statement_period),
+    INDEX idx_statement_period_summary_start_date (period_start_date),
+    INDEX idx_statement_period_summary_end_date (period_end_date)
 );
 
 CREATE TABLE workspace_backups (
@@ -87,5 +112,5 @@ CREATE TABLE workspace_backups (
     projections_hash VARCHAR(64),
     local_cache_hash VARCHAR(64),
     version VARCHAR(16),
-    INDEX idx_backup_time (backup_time)
+    INDEX idx_workspace_backups_backup_time (backup_time)
 );
