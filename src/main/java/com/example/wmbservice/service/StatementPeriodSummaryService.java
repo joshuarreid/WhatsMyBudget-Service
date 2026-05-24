@@ -105,9 +105,22 @@ public class StatementPeriodSummaryService {
         if (isClosedPeriod(normalizedPeriod, statementPeriod, firstDayOfCurrentMonth)) {
             StatementPeriodSummary entity = summaryRepository.findByStatementPeriod(normalizedPeriod)
                     .orElseGet(() -> upsertSummary(normalizedPeriod, statementPeriod, transactionId));
-            logger.info("[period.summary] <- getSummary txId={} period={} source=archived generatedAt={}",
-                    transactionId, normalizedPeriod, entity.getGeneratedAt());
-            return toResponse(entity);
+
+            try {
+                AnalyticsStatementPeriodSummaryResponse archived = toResponse(entity);
+                logger.info("[period.summary] <- getSummary txId={} period={} source=archived generatedAt={}",
+                        transactionId, normalizedPeriod, entity.getGeneratedAt());
+                return archived;
+            } catch (RuntimeException ex) {
+                // Backwards-compat: older persisted summaries stored list-based JSON. Recompute and migrate.
+                logger.warn("[period.summary] archived summary failed to deserialize; recomputing txId={} period={} err={}",
+                        transactionId, normalizedPeriod, ex.getMessage());
+                StatementPeriodSummary migrated = upsertSummary(normalizedPeriod, statementPeriod, transactionId);
+                AnalyticsStatementPeriodSummaryResponse response = toResponse(migrated);
+                logger.info("[period.summary] <- getSummary txId={} period={} source=archived-migrated generatedAt={}",
+                        transactionId, normalizedPeriod, migrated.getGeneratedAt());
+                return response;
+            }
         }
 
         AnalyticsStatementPeriodSummaryResponse response = buildResponse(normalizedPeriod, statementPeriod, transactionId, LocalDateTime.now());
@@ -176,29 +189,81 @@ public class StatementPeriodSummaryService {
                                                                  StatementPeriod statementPeriod,
                                                                  String transactionId,
                                                                  LocalDateTime generatedAt) {
-        AnalyticsPeriodOverviewResponse overview = analyticsService.getPeriodOverview(periodName, null, null, transactionId);
-        List<AnalyticsCategoryBreakdownResponse> categories = analyticsService.getCategoryBreakdown(periodName, null, null, transactionId);
-        List<AnalyticsCriticalityBreakdownResponse> criticalities = analyticsService.getCriticalityBreakdown(periodName, null, null, transactionId);
-        List<AnalyticsAccountBreakdownResponse> accounts = analyticsService.getAccountBreakdown(periodName, null, transactionId);
-        List<AnalyticsPaymentMethodBreakdownResponse> paymentMethods = analyticsService.getPaymentMethodBreakdown(periodName, null, transactionId);
-        List<BudgetTransaction> outliers = analyticsService.getOutliers(periodName, OUTLIER_LIMIT, transactionId);
-        PeriodBounds bounds = resolveBounds(periodName, statementPeriod);
+        // Load all transactions for the period and group by account.
+        // NOTE: We intentionally do not use resolveBounds(...) for response dates.
+        List<BudgetTransaction> all = budgetTransactionRepository.findByFilters(periodName, null, null, null, null);
+        Map<String, List<BudgetTransaction>> byAccount = all.stream()
+                .collect(Collectors.groupingBy(t -> safeKey(t.getAccount()), LinkedHashMap::new, Collectors.toList()));
+
+        LocalDate periodStartDate = all.stream()
+                .map(BudgetTransaction::getTransactionDate)
+                .filter(Objects::nonNull)
+                .min(LocalDate::compareTo)
+                .orElse(null);
+
+        LocalDate periodEndDate = all.stream()
+                .map(BudgetTransaction::getTransactionDate)
+                .filter(Objects::nonNull)
+                .max(LocalDate::compareTo)
+                .orElse(null);
+
+        BigDecimal totalAmount = all.stream()
+                .map(BudgetTransaction::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long transactionCount = all.size();
+
+        BigDecimal essentialAmount = all.stream()
+                .filter(this::isEssential)
+                .map(BudgetTransaction::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long essentialCount = all.stream().filter(this::isEssential).count();
+
+        BigDecimal nonessentialAmount = all.stream()
+                .filter(this::isNonessential)
+                .map(BudgetTransaction::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long nonessentialCount = all.stream().filter(this::isNonessential).count();
+
+        Map<String, List<AnalyticsCategoryBreakdownResponse>> categoryBreakdown = new LinkedHashMap<>();
+        Map<String, List<AnalyticsCriticalityBreakdownResponse>> criticalityBreakdown = new LinkedHashMap<>();
+        Map<String, List<AnalyticsPaymentMethodBreakdownResponse>> paymentMethodBreakdown = new LinkedHashMap<>();
+        Map<String, List<BudgetTransaction>> outliersByAccount = new LinkedHashMap<>();
+        Map<String, AnalyticsAccountBreakdownResponse> accountBreakdown = new LinkedHashMap<>();
+
+        for (Map.Entry<String, List<BudgetTransaction>> entry : byAccount.entrySet()) {
+            String account = entry.getKey();
+            List<BudgetTransaction> txs = entry.getValue() != null ? entry.getValue() : List.of();
+
+            categoryBreakdown.put(account, buildCategoryBreakdown(txs));
+            criticalityBreakdown.put(account, buildCriticalityBreakdown(txs));
+            paymentMethodBreakdown.put(account, buildPaymentMethodBreakdown(txs));
+            outliersByAccount.put(account, buildOutliers(txs, OUTLIER_LIMIT));
+
+            BigDecimal accountTotal = txs.stream()
+                    .map(BudgetTransaction::getAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            accountBreakdown.put(account, new AnalyticsAccountBreakdownResponse(account, accountTotal, txs.size()));
+        }
 
         return new AnalyticsStatementPeriodSummaryResponse(
                 periodName,
-                bounds.startDate(),
-                bounds.endDate(),
-                overview.getTotalAmount() != null ? overview.getTotalAmount() : BigDecimal.ZERO,
-                overview.getTransactionCount(),
-                amountForCriticality(criticalities, "ESSENTIAL"),
-                countForCriticality(criticalities, "ESSENTIAL"),
-                amountForCriticality(criticalities, "NONESSENTIAL"),
-                countForCriticality(criticalities, "NONESSENTIAL"),
-                categories,
-                criticalities,
-                accounts,
-                paymentMethods,
-                outliers,
+                periodStartDate,
+                periodEndDate,
+                totalAmount,
+                transactionCount,
+                essentialAmount,
+                essentialCount,
+                nonessentialAmount,
+                nonessentialCount,
+                categoryBreakdown,
+                criticalityBreakdown,
+                accountBreakdown,
+                paymentMethodBreakdown,
+                outliersByAccount,
                 generatedAt
         );
     }
@@ -214,11 +279,11 @@ public class StatementPeriodSummaryService {
                 defaultCount(entity.getEssentialCount()),
                 defaultAmount(entity.getNonessentialAmount()),
                 defaultCount(entity.getNonessentialCount()),
-                readJson(entity.getCategoryBreakdownJson(), new TypeReference<>() {}),
-                readJson(entity.getCriticalityBreakdownJson(), new TypeReference<>() {}),
-                readJson(entity.getAccountBreakdownJson(), new TypeReference<>() {}),
-                readJson(entity.getPaymentMethodBreakdownJson(), new TypeReference<>() {}),
-                readJson(entity.getOutliersJson(), new TypeReference<>() {}),
+                readJson(entity.getCategoryBreakdownJson(), new TypeReference<>() {}, Map.of()),
+                readJson(entity.getCriticalityBreakdownJson(), new TypeReference<>() {}, Map.of()),
+                readJson(entity.getAccountBreakdownJson(), new TypeReference<>() {}, Map.of()),
+                readJson(entity.getPaymentMethodBreakdownJson(), new TypeReference<>() {}, Map.of()),
+                readJson(entity.getOutliersJson(), new TypeReference<>() {}, Map.of()),
                 entity.getGeneratedAt()
         );
     }
@@ -286,19 +351,82 @@ public class StatementPeriodSummaryService {
         return period.trim().toUpperCase(Locale.ENGLISH);
     }
 
-    private BigDecimal amountForCriticality(List<AnalyticsCriticalityBreakdownResponse> rows, String value) {
-        return rows.stream()
-                .filter(row -> row.getCriticality() != null && row.getCriticality().trim().equalsIgnoreCase(value))
-                .map(AnalyticsCriticalityBreakdownResponse::getTotalAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private boolean isEssential(BudgetTransaction t) {
+        if (t == null || t.getCriticality() == null) return false;
+        String c = t.getCriticality().trim();
+        return c.equalsIgnoreCase("ESSENTIAL") || c.equalsIgnoreCase("Essential");
     }
 
-    private long countForCriticality(List<AnalyticsCriticalityBreakdownResponse> rows, String value) {
-        return rows.stream()
-                .filter(row -> row.getCriticality() != null && row.getCriticality().trim().equalsIgnoreCase(value))
-                .mapToLong(AnalyticsCriticalityBreakdownResponse::getTransactionCount)
-                .sum();
+    private boolean isNonessential(BudgetTransaction t) {
+        if (t == null || t.getCriticality() == null) return false;
+        String c = t.getCriticality().trim();
+        return c.equalsIgnoreCase("NONESSENTIAL") || c.equalsIgnoreCase("Nonessential");
+    }
+
+    private String safeKey(String value) {
+        if (value == null) return "UNKNOWN";
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "UNKNOWN" : trimmed;
+    }
+
+    private List<AnalyticsCategoryBreakdownResponse> buildCategoryBreakdown(List<BudgetTransaction> txs) {
+        Map<String, List<BudgetTransaction>> grouped = txs.stream()
+                .collect(Collectors.groupingBy(t -> safeKey(t.getCategory())));
+        return grouped.entrySet().stream()
+                .map(entry -> {
+                    BigDecimal total = entry.getValue().stream()
+                            .map(BudgetTransaction::getAmount)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return new AnalyticsCategoryBreakdownResponse(entry.getKey(), total, entry.getValue().size());
+                })
+                .sorted(Comparator.comparing(AnalyticsCategoryBreakdownResponse::getTotalAmount, BigDecimal::compareTo).reversed())
+                .toList();
+    }
+
+    private List<AnalyticsCriticalityBreakdownResponse> buildCriticalityBreakdown(List<BudgetTransaction> txs) {
+        Map<String, List<BudgetTransaction>> grouped = txs.stream()
+                .collect(Collectors.groupingBy(t -> safeKey(t.getCriticality())));
+        return grouped.entrySet().stream()
+                .map(entry -> {
+                    BigDecimal total = entry.getValue().stream()
+                            .map(BudgetTransaction::getAmount)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return new AnalyticsCriticalityBreakdownResponse(entry.getKey(), total, entry.getValue().size());
+                })
+                .sorted(Comparator.comparing(AnalyticsCriticalityBreakdownResponse::getTotalAmount, BigDecimal::compareTo).reversed())
+                .toList();
+    }
+
+    private List<AnalyticsPaymentMethodBreakdownResponse> buildPaymentMethodBreakdown(List<BudgetTransaction> txs) {
+        Map<String, List<BudgetTransaction>> grouped = txs.stream()
+                .collect(Collectors.groupingBy(t -> safeKey(t.getPaymentMethod())));
+        return grouped.entrySet().stream()
+                .map(entry -> {
+                    BigDecimal total = entry.getValue().stream()
+                            .map(BudgetTransaction::getAmount)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return new AnalyticsPaymentMethodBreakdownResponse(entry.getKey(), total, entry.getValue().size());
+                })
+                .sorted(Comparator.comparing(AnalyticsPaymentMethodBreakdownResponse::getTotalAmount, BigDecimal::compareTo).reversed())
+                .toList();
+    }
+
+    private List<BudgetTransaction> buildOutliers(List<BudgetTransaction> txs, int limit) {
+        int safeLimit = Math.max(0, limit);
+        if (safeLimit == 0 || txs == null || txs.isEmpty()) {
+            return List.of();
+        }
+        Comparator<BudgetTransaction> comparator = Comparator
+                .comparing(BudgetTransaction::getAmount, Comparator.nullsLast(BigDecimal::compareTo)).reversed()
+                .thenComparing(BudgetTransaction::getTransactionDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(BudgetTransaction::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+        return txs.stream()
+                .sorted(comparator)
+                .limit(safeLimit)
+                .toList();
     }
 
     private String writeJson(Object value) {
@@ -309,9 +437,9 @@ public class StatementPeriodSummaryService {
         }
     }
 
-    private <T> List<T> readJson(String value, TypeReference<List<T>> typeReference) {
+    private <T> T readJson(String value, TypeReference<T> typeReference, T defaultValue) {
         if (value == null || value.isBlank()) {
-            return List.of();
+            return defaultValue;
         }
         try {
             return objectMapper.readValue(value, typeReference);

@@ -92,14 +92,28 @@ class StatementPeriodSummaryIT {
         mockMvc.perform(get("/api/analytics/summaries/FEBRUARY2020"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statementPeriod").value("FEBRUARY2020"))
+                .andExpect(jsonPath("$.periodStartDate").value("2020-02-05"))
+                .andExpect(jsonPath("$.periodEndDate").value("2020-02-15"))
                 .andExpect(jsonPath("$.transactionCount").value(2))
                 .andExpect(jsonPath("$.totalAmount").value(65.00))
                 .andExpect(jsonPath("$.essentialAmount").value(40.00))
                 .andExpect(jsonPath("$.nonessentialAmount").value(25.00))
-                .andExpect(jsonPath("$.categoryBreakdown.length()").value(2))
-                .andExpect(jsonPath("$.accountBreakdown.length()").value(2))
-                .andExpect(jsonPath("$.paymentMethodBreakdown.length()").value(2))
-                .andExpect(jsonPath("$.outliers.length()").value(2));
+                .andExpect(jsonPath("$.categoryBreakdown.joint[0].category").value("groceries"))
+                .andExpect(jsonPath("$.categoryBreakdown.joint[0].totalAmount").value(40.00))
+                .andExpect(jsonPath("$.categoryBreakdown.joint[0].transactionCount").value(1))
+                .andExpect(jsonPath("$.categoryBreakdown.josh[0].category").value("clothing"))
+                .andExpect(jsonPath("$.categoryBreakdown.josh[0].totalAmount").value(25.00))
+                .andExpect(jsonPath("$.categoryBreakdown.josh[0].transactionCount").value(1))
+                .andExpect(jsonPath("$.accountBreakdown.joint.account").value("joint"))
+                .andExpect(jsonPath("$.accountBreakdown.joint.totalAmount").value(40.00))
+                .andExpect(jsonPath("$.accountBreakdown.joint.transactionCount").value(1))
+                .andExpect(jsonPath("$.accountBreakdown.josh.account").value("josh"))
+                .andExpect(jsonPath("$.accountBreakdown.josh.totalAmount").value(25.00))
+                .andExpect(jsonPath("$.accountBreakdown.josh.transactionCount").value(1))
+                .andExpect(jsonPath("$.paymentMethodBreakdown.joint[0].paymentMethod").value("visa"))
+                .andExpect(jsonPath("$.paymentMethodBreakdown.josh[0].paymentMethod").value("amex"))
+                .andExpect(jsonPath("$.outliers.joint.length()").value(1))
+                .andExpect(jsonPath("$.outliers.josh.length()").value(1));
 
         Assertions.assertThat(statementPeriodSummaryRepository.findByStatementPeriod("FEBRUARY2020")).isPresent();
     }
@@ -119,6 +133,8 @@ class StatementPeriodSummaryIT {
         mockMvc.perform(get("/api/analytics/summaries/MAY2030"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statementPeriod").value("MAY2030"))
+                .andExpect(jsonPath("$.periodStartDate").value("2030-05-20"))
+                .andExpect(jsonPath("$.periodEndDate").value("2030-05-20"))
                 .andExpect(jsonPath("$.transactionCount").value(1))
                 .andExpect(jsonPath("$.totalAmount").value(50.00));
 

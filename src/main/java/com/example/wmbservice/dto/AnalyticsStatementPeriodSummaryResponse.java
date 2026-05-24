@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -23,11 +24,14 @@ public class AnalyticsStatementPeriodSummaryResponse {
     private long essentialCount;
     private BigDecimal nonessentialAmount;
     private long nonessentialCount;
-    private List<AnalyticsCategoryBreakdownResponse> categoryBreakdown;
-    private List<AnalyticsCriticalityBreakdownResponse> criticalityBreakdown;
-    private List<AnalyticsAccountBreakdownResponse> accountBreakdown;
-    private List<AnalyticsPaymentMethodBreakdownResponse> paymentMethodBreakdown;
-    private List<BudgetTransaction> outliers;
+    /**
+     * Account-keyed breakdowns. Keys are BudgetTransaction.account.
+     */
+    private Map<String, List<AnalyticsCategoryBreakdownResponse>> categoryBreakdown;
+    private Map<String, List<AnalyticsCriticalityBreakdownResponse>> criticalityBreakdown;
+    private Map<String, AnalyticsAccountBreakdownResponse> accountBreakdown;
+    private Map<String, List<AnalyticsPaymentMethodBreakdownResponse>> paymentMethodBreakdown;
+    private Map<String, List<BudgetTransaction>> outliers;
     private LocalDateTime generatedAt;
 }
 
