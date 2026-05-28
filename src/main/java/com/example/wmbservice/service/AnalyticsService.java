@@ -10,9 +10,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service layer for analytics.
@@ -59,6 +61,18 @@ public class AnalyticsService {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getPeriodOverview txId={} period={} paymentMethod={} account={}", transactionId, period, paymentMethod, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<BudgetTransaction> effectiveTransactions = getEffectiveTransactionsForPeriod(period, paymentMethod, account);
+            BigDecimal total = effectiveTransactions.stream()
+                    .map(BudgetTransaction::getAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long count = effectiveTransactions.size();
+            AnalyticsPeriodOverviewResponse resp = new AnalyticsPeriodOverviewResponse(period, blankToNull(paymentMethod), blankToNull(account), total, count);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getPeriodOverview txId={} period={} total={} count={} durationMs={}", transactionId, period, total, count, ms);
+            return resp;
+        }
         // Repository signature returns Object[] so cast directly and handle nested array case.
         Object raw = budgetTransactionRepository.getOverviewTotals(period, blankToNull(paymentMethod), blankToNull(account));
         Object[] row;
@@ -91,6 +105,20 @@ public class AnalyticsService {
         logger.info("[analytics.svc] -> getDateRangeOverview txId={} startDate={} endDate={} paymentMethod={} account={}",
                 transactionId, startDate, endDate, paymentMethod, account);
 
+        if (shouldIncludeHalfJoint(account)) {
+            List<BudgetTransaction> effectiveTransactions = getEffectiveTransactionsByDateRange(startDate, endDate, paymentMethod, account);
+            BigDecimal total = effectiveTransactions.stream()
+                    .map(BudgetTransaction::getAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long count = effectiveTransactions.size();
+            AnalyticsPeriodOverviewResponse resp = new AnalyticsPeriodOverviewResponse(null, blankToNull(paymentMethod), blankToNull(account), total, count);
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getDateRangeOverview txId={} startDate={} endDate={} total={} count={} durationMs={}",
+                    transactionId, startDate, endDate, total, count, ms);
+            return resp;
+        }
+
         Object raw = budgetTransactionRepository.getOverviewTotalsByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
         Object[] row;
         if (raw == null) {
@@ -118,6 +146,12 @@ public class AnalyticsService {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getCategoryBreakdown txId={} period={} paymentMethod={} account={}", transactionId, period, paymentMethod, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsCategoryBreakdownResponse> out = buildCategoryBreakdown(getEffectiveTransactionsForPeriod(period, paymentMethod, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getCategoryBreakdown txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getCategoryBreakdown(period, blankToNull(paymentMethod), blankToNull(account));
         List<AnalyticsCategoryBreakdownResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -134,6 +168,13 @@ public class AnalyticsService {
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getCategoryBreakdownByDateRange txId={} startDate={} endDate={} paymentMethod={} account={}",
                 transactionId, startDate, endDate, paymentMethod, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsCategoryBreakdownResponse> out = buildCategoryBreakdown(getEffectiveTransactionsByDateRange(startDate, endDate, paymentMethod, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getCategoryBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                    transactionId, startDate, endDate, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getCategoryBreakdownByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
         List<AnalyticsCategoryBreakdownResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -218,10 +259,7 @@ public class AnalyticsService {
         logger.info("[analytics.svc] -> getAccountBreakdown txId={} period={} paymentMethod={}", transactionId, period, paymentMethod);
         // Use repository two-arg overload (no account filter) for compatibility.
         List<Object[]> rows = budgetTransactionRepository.getAccountBreakdown(period, blankToNull(paymentMethod));
-        List<AnalyticsAccountBreakdownResponse> out = new ArrayList<>();
-        for (Object[] r : rows) {
-            out.add(new AnalyticsAccountBreakdownResponse((String) r[0], (BigDecimal) r[1], (Long) r[2]));
-        }
+        List<AnalyticsAccountBreakdownResponse> out = buildAdjustedAccountBreakdown(rows);
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getAccountBreakdown txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
         return out;
@@ -234,10 +272,7 @@ public class AnalyticsService {
         logger.info("[analytics.svc] -> getAccountBreakdownByDateRange txId={} startDate={} endDate={} paymentMethod={}",
                 transactionId, startDate, endDate, paymentMethod);
         List<Object[]> rows = budgetTransactionRepository.getAccountBreakdownByDateRange(startDate, endDate, blankToNull(paymentMethod), null);
-        List<AnalyticsAccountBreakdownResponse> out = new ArrayList<>();
-        for (Object[] r : rows) {
-            out.add(new AnalyticsAccountBreakdownResponse((String) r[0], (BigDecimal) r[1], (Long) r[2]));
-        }
+        List<AnalyticsAccountBreakdownResponse> out = buildAdjustedAccountBreakdown(rows);
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics.svc] <- getAccountBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
                 transactionId, startDate, endDate, out.size(), ms);
@@ -249,6 +284,12 @@ public class AnalyticsService {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getPaymentMethodBreakdown txId={} period={} account={}", transactionId, period, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsPaymentMethodBreakdownResponse> out = buildPaymentMethodBreakdown(getEffectiveTransactionsForPeriod(period, null, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getPaymentMethodBreakdown txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getPaymentMethodBreakdown(period, blankToNull(account));
         List<AnalyticsPaymentMethodBreakdownResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -265,6 +306,13 @@ public class AnalyticsService {
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getPaymentMethodBreakdownByDateRange txId={} startDate={} endDate={} account={}",
                 transactionId, startDate, endDate, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsPaymentMethodBreakdownResponse> out = buildPaymentMethodBreakdown(getEffectiveTransactionsByDateRange(startDate, endDate, null, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getPaymentMethodBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                    transactionId, startDate, endDate, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getPaymentMethodBreakdownByDateRange(startDate, endDate, blankToNull(account));
         List<AnalyticsPaymentMethodBreakdownResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -281,6 +329,12 @@ public class AnalyticsService {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getDailyTotals txId={} period={} paymentMethod={} account={}", transactionId, period, paymentMethod, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsDailyTotalResponse> out = buildDailyTotals(getEffectiveTransactionsForPeriod(period, paymentMethod, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getDailyTotals txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getDailyTotals(period, blankToNull(paymentMethod), blankToNull(account));
         List<AnalyticsDailyTotalResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -297,6 +351,13 @@ public class AnalyticsService {
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getDailyTotalsByDateRange txId={} startDate={} endDate={} paymentMethod={} account={}",
                 transactionId, startDate, endDate, paymentMethod, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsDailyTotalResponse> out = buildDailyTotals(getEffectiveTransactionsByDateRange(startDate, endDate, paymentMethod, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getDailyTotalsByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                    transactionId, startDate, endDate, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getDailyTotalsByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
         List<AnalyticsDailyTotalResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -313,6 +374,12 @@ public class AnalyticsService {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getCriticalityBreakdown txId={} period={} paymentMethod={} account={}", transactionId, period, paymentMethod, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsCriticalityBreakdownResponse> out = buildCriticalityBreakdown(getEffectiveTransactionsForPeriod(period, paymentMethod, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getCriticalityBreakdown txId={} period={} rows={} durationMs={}", transactionId, period, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getCriticalityBreakdown(period, blankToNull(paymentMethod), blankToNull(account));
         List<AnalyticsCriticalityBreakdownResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -329,6 +396,13 @@ public class AnalyticsService {
         long startNs = System.nanoTime();
         logger.info("[analytics.svc] -> getCriticalityBreakdownByDateRange txId={} startDate={} endDate={} paymentMethod={} account={}",
                 transactionId, startDate, endDate, paymentMethod, account);
+        if (shouldIncludeHalfJoint(account)) {
+            List<AnalyticsCriticalityBreakdownResponse> out = buildCriticalityBreakdown(getEffectiveTransactionsByDateRange(startDate, endDate, paymentMethod, account));
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.info("[analytics.svc] <- getCriticalityBreakdownByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                    transactionId, startDate, endDate, out.size(), ms);
+            return out;
+        }
         List<Object[]> rows = budgetTransactionRepository.getCriticalityBreakdownByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
         List<AnalyticsCriticalityBreakdownResponse> out = new ArrayList<>();
         for (Object[] r : rows) {
@@ -425,6 +499,163 @@ public class AnalyticsService {
         if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    private boolean shouldIncludeHalfJoint(String account) {
+        String normalized = normalizeAccount(account);
+        return normalized != null && !normalized.equals("joint");
+    }
+
+    private String normalizeAccount(String account) {
+        String normalized = blankToNull(account);
+        return normalized != null ? normalized.toLowerCase(Locale.ENGLISH) : null;
+    }
+
+    private List<BudgetTransaction> getEffectiveTransactionsForPeriod(String period, String paymentMethod, String account) {
+        List<BudgetTransaction> transactions = budgetTransactionRepository.findByFilters(period, null, null, null, blankToNull(paymentMethod));
+        return applyJointSplit(transactions, account);
+    }
+
+    private List<BudgetTransaction> getEffectiveTransactionsByDateRange(LocalDate startDate, LocalDate endDate, String paymentMethod, String account) {
+        List<BudgetTransaction> transactions = budgetTransactionRepository.findByDateRangeFilters(startDate, endDate, null, null, null, blankToNull(paymentMethod));
+        return applyJointSplit(transactions, account);
+    }
+
+    private List<BudgetTransaction> applyJointSplit(List<BudgetTransaction> transactions, String account) {
+        String normalizedAccount = normalizeAccount(account);
+        if (normalizedAccount == null) {
+            return transactions != null ? transactions : List.of();
+        }
+
+        List<BudgetTransaction> out = new ArrayList<>();
+        for (BudgetTransaction tx : transactions) {
+            String txAccount = normalizeAccount(tx.getAccount());
+            if (normalizedAccount.equals(txAccount)) {
+                out.add(tx);
+            } else if (!normalizedAccount.equals("joint") && "joint".equals(txAccount)) {
+                out.add(cloneWithSplitAmount(tx, normalizedAccount));
+            }
+        }
+        return out;
+    }
+
+    private BudgetTransaction cloneWithSplitAmount(BudgetTransaction tx, String normalizedAccount) {
+        BudgetTransaction clone = new BudgetTransaction();
+        clone.setId(tx.getId());
+        clone.setName(tx.getName());
+        clone.setAmount(safeAmount(tx.getAmount()).divide(new BigDecimal("2.0"), 2, RoundingMode.HALF_UP));
+        clone.setCategory(tx.getCategory());
+        clone.setCriticality(tx.getCriticality());
+        clone.setTransactionDate(tx.getTransactionDate());
+        clone.setAccount(normalizedAccount);
+        clone.setStatus(tx.getStatus());
+        clone.setCreatedTime(tx.getCreatedTime());
+        clone.setPaymentMethod(tx.getPaymentMethod());
+        clone.setStatementPeriod(tx.getStatementPeriod());
+        clone.setRowHash(tx.getRowHash());
+        return clone;
+    }
+
+    private List<AnalyticsCategoryBreakdownResponse> buildCategoryBreakdown(List<BudgetTransaction> transactions) {
+        return transactions.stream()
+                .collect(Collectors.groupingBy(tx -> blankToNull(tx.getCategory()), Collectors.toList()))
+                .entrySet().stream()
+                .filter(entry -> entry.getKey() != null)
+                .map(entry -> new AnalyticsCategoryBreakdownResponse(
+                        entry.getKey(),
+                        sumAmounts(entry.getValue()),
+                        entry.getValue().size()))
+                .sorted(Comparator.comparing(AnalyticsCategoryBreakdownResponse::getTotalAmount, BigDecimal::compareTo)
+                        .reversed()
+                        .thenComparing(AnalyticsCategoryBreakdownResponse::getCategory, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private List<AnalyticsAccountBreakdownResponse> buildAdjustedAccountBreakdown(List<Object[]> rows) {
+        List<AnalyticsAccountBreakdownResponse> baseRows = new ArrayList<>();
+        for (Object[] r : rows) {
+            baseRows.add(new AnalyticsAccountBreakdownResponse((String) r[0], (BigDecimal) r[1], (Long) r[2]));
+        }
+
+        AnalyticsAccountBreakdownResponse jointRow = baseRows.stream()
+                .filter(row -> "joint".equalsIgnoreCase(blankToNull(row.getAccount())))
+                .findFirst()
+                .orElse(null);
+
+        if (jointRow == null) {
+            return baseRows;
+        }
+
+        BigDecimal halfJointAmount = safeAmount(jointRow.getTotalAmount())
+                .divide(new BigDecimal("2.0"), 2, RoundingMode.HALF_UP);
+        long jointCount = jointRow.getTransactionCount();
+
+        return baseRows.stream()
+                .map(row -> {
+                    String account = blankToNull(row.getAccount());
+                    if (account == null || account.equalsIgnoreCase("joint")) {
+                        return row;
+                    }
+                    return new AnalyticsAccountBreakdownResponse(
+                            row.getAccount(),
+                            safeAmount(row.getTotalAmount()).add(halfJointAmount),
+                            row.getTransactionCount() + jointCount);
+                })
+                .sorted(Comparator.comparing(AnalyticsAccountBreakdownResponse::getTotalAmount, BigDecimal::compareTo)
+                        .reversed()
+                        .thenComparing(AnalyticsAccountBreakdownResponse::getAccount, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .toList();
+    }
+
+    private List<AnalyticsPaymentMethodBreakdownResponse> buildPaymentMethodBreakdown(List<BudgetTransaction> transactions) {
+        return transactions.stream()
+                .collect(Collectors.groupingBy(tx -> blankToNull(tx.getPaymentMethod()), Collectors.toList()))
+                .entrySet().stream()
+                .filter(entry -> entry.getKey() != null)
+                .map(entry -> new AnalyticsPaymentMethodBreakdownResponse(
+                        entry.getKey(),
+                        sumAmounts(entry.getValue()),
+                        entry.getValue().size()))
+                .sorted(Comparator.comparing(AnalyticsPaymentMethodBreakdownResponse::getTotalAmount, BigDecimal::compareTo)
+                        .reversed()
+                        .thenComparing(AnalyticsPaymentMethodBreakdownResponse::getPaymentMethod, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private List<AnalyticsDailyTotalResponse> buildDailyTotals(List<BudgetTransaction> transactions) {
+        return transactions.stream()
+                .collect(Collectors.groupingBy(BudgetTransaction::getTransactionDate, Collectors.toList()))
+                .entrySet().stream()
+                .filter(entry -> entry.getKey() != null)
+                .map(entry -> new AnalyticsDailyTotalResponse(entry.getKey(), sumAmounts(entry.getValue()), entry.getValue().size()))
+                .sorted(Comparator.comparing(AnalyticsDailyTotalResponse::getDate))
+                .toList();
+    }
+
+    private List<AnalyticsCriticalityBreakdownResponse> buildCriticalityBreakdown(List<BudgetTransaction> transactions) {
+        return transactions.stream()
+                .collect(Collectors.groupingBy(tx -> blankToNull(tx.getCriticality()), Collectors.toList()))
+                .entrySet().stream()
+                .filter(entry -> entry.getKey() != null)
+                .map(entry -> new AnalyticsCriticalityBreakdownResponse(
+                        entry.getKey(),
+                        sumAmounts(entry.getValue()),
+                        entry.getValue().size()))
+                .sorted(Comparator.comparing(AnalyticsCriticalityBreakdownResponse::getTotalAmount, BigDecimal::compareTo)
+                        .reversed()
+                        .thenComparing(AnalyticsCriticalityBreakdownResponse::getCriticality, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private BigDecimal sumAmounts(List<BudgetTransaction> transactions) {
+        return transactions.stream()
+                .map(BudgetTransaction::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal safeAmount(BigDecimal amount) {
+        return amount != null ? amount : BigDecimal.ZERO;
     }
 
     // Helper: convert various DB-returned objects into BigDecimal safely.

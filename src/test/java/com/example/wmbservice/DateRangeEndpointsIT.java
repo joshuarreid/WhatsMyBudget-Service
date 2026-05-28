@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,6 +60,86 @@ class DateRangeEndpointsIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transactionCount").value(2))
                 .andExpect(jsonPath("$.totalAmount").value(30.00));
+    }
+
+    @Test
+    void analyticsOverviewByDateRange_forNonJointAccount_includesHalfOfJoint() throws Exception {
+        mockMvc.perform(get("/api/analytics/range/overview")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-31")
+                        .param("account", "josh"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.account").value("josh"))
+                .andExpect(jsonPath("$.transactionCount").value(2))
+                .andExpect(jsonPath("$.totalAmount").value(20.00));
+    }
+
+    @Test
+    void analyticsCategoryBreakdownByDateRange_forNonJointAccount_includesHalfOfJoint() throws Exception {
+        mockMvc.perform(get("/api/analytics/range/categories")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-31")
+                        .param("account", "josh"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].category").value("coffee"))
+                .andExpect(jsonPath("$[0].totalAmount").value(10.00))
+                .andExpect(jsonPath("$[0].transactionCount").value(1))
+                .andExpect(jsonPath("$[1].category").value("groceries"))
+                .andExpect(jsonPath("$[1].totalAmount").value(10.00))
+                .andExpect(jsonPath("$[1].transactionCount").value(1));
+    }
+
+    @Test
+    void analyticsPaymentMethodBreakdownByDateRange_forNonJointAccount_includesHalfOfJoint() throws Exception {
+        mockMvc.perform(get("/api/analytics/range/payment-methods")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-31")
+                        .param("account", "josh"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].paymentMethod").value("visa"))
+                .andExpect(jsonPath("$[0].totalAmount").value(20.00))
+                .andExpect(jsonPath("$[0].transactionCount").value(2));
+    }
+
+    @Test
+    void analyticsAccountBreakdownByDateRange_appliesHalfOfJointToEachNonJointAccount() throws Exception {
+        mockMvc.perform(get("/api/analytics/range/accounts")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].account", hasItem("josh")))
+                .andExpect(jsonPath("$[*].account", hasItem("joint")))
+                .andExpect(jsonPath("$[?(@.account=='josh')].totalAmount", hasItem(20.00)))
+                .andExpect(jsonPath("$[?(@.account=='josh')].transactionCount", hasItem(2)))
+                .andExpect(jsonPath("$[?(@.account=='joint')].totalAmount", hasItem(20.00)))
+                .andExpect(jsonPath("$[?(@.account=='joint')].transactionCount", hasItem(1)));
+    }
+
+    @Test
+    void analyticsDailyTotalsByDateRange_forNonJointAccount_includesHalfOfJoint() throws Exception {
+        mockMvc.perform(get("/api/analytics/range/daily")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-31")
+                        .param("account", "josh"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].date").value("2026-05-01"))
+                .andExpect(jsonPath("$[0].totalAmount").value(10.00))
+                .andExpect(jsonPath("$[0].transactionCount").value(1))
+                .andExpect(jsonPath("$[1].date").value("2026-05-10"))
+                .andExpect(jsonPath("$[1].totalAmount").value(10.00))
+                .andExpect(jsonPath("$[1].transactionCount").value(1));
+    }
+
+    @Test
+    void analyticsCriticalityBreakdownByDateRange_forNonJointAccount_includesHalfOfJoint() throws Exception {
+        mockMvc.perform(get("/api/analytics/range/criticality")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-31")
+                        .param("account", "josh"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].criticality").value("low"))
+                .andExpect(jsonPath("$[0].totalAmount").value(20.00))
+                .andExpect(jsonPath("$[0].transactionCount").value(2));
     }
 
     @Test
