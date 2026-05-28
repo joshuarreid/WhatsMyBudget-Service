@@ -118,6 +118,47 @@ public interface BudgetTransactionRepository extends JpaRepository<BudgetTransac
                                                   @Param("account") String account);
 
     /**
+     * Distinct categories across all transactions.
+     * Excludes NULL/blank categories.
+     */
+    @Query("SELECT DISTINCT t.category " +
+            "FROM BudgetTransaction t " +
+            "WHERE (t.category IS NOT NULL AND TRIM(t.category) <> '') " +
+            "ORDER BY t.category ASC")
+    List<String> findDistinctCategories();
+
+    /**
+     * Distinct categories for a statement period with optional paymentMethod/account filters.
+     * Excludes NULL/blank categories.
+     */
+    @Query("SELECT DISTINCT t.category " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.statementPeriod = :statementPeriod " +
+            "AND (t.category IS NOT NULL AND TRIM(t.category) <> '') " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "AND (:account IS NULL OR t.account = :account) " +
+            "ORDER BY t.category ASC")
+    List<String> findDistinctCategories(@Param("statementPeriod") String statementPeriod,
+                                        @Param("paymentMethod") String paymentMethod,
+                                        @Param("account") String account);
+
+    /**
+     * Distinct categories for an inclusive date range with optional paymentMethod/account filters.
+     * Excludes NULL/blank categories.
+     */
+    @Query("SELECT DISTINCT t.category " +
+            "FROM BudgetTransaction t " +
+            "WHERE t.transactionDate BETWEEN :startDate AND :endDate " +
+            "AND (t.category IS NOT NULL AND TRIM(t.category) <> '') " +
+            "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
+            "AND (:account IS NULL OR t.account = :account) " +
+            "ORDER BY t.category ASC")
+    List<String> findDistinctCategoriesByDateRange(@Param("startDate") LocalDate startDate,
+                                                  @Param("endDate") LocalDate endDate,
+                                                  @Param("paymentMethod") String paymentMethod,
+                                                  @Param("account") String account);
+
+    /**
      * Grouped totals for a period by account.
      */
     @Query("SELECT t.account, COALESCE(SUM(t.amount), 0), COUNT(t) " +

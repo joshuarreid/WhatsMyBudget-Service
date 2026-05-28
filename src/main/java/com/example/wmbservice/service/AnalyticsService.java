@@ -146,6 +146,44 @@ public class AnalyticsService {
     }
 
     @Transactional
+    public List<String> getDistinctCategories(String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getDistinctCategories txId={}", transactionId);
+        List<String> out = budgetTransactionRepository.findDistinctCategories();
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getDistinctCategories txId={} rows={} durationMs={}",
+                transactionId, out != null ? out.size() : null, ms);
+        return out != null ? out : List.of();
+    }
+
+    @Transactional
+    public List<String> getDistinctCategories(String period, String paymentMethod, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getDistinctCategories txId={} period={} paymentMethod={} account={}",
+                transactionId, period, paymentMethod, account);
+        List<String> out = budgetTransactionRepository.findDistinctCategories(period, blankToNull(paymentMethod), blankToNull(account));
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getDistinctCategories txId={} period={} rows={} durationMs={}",
+                transactionId, period, out != null ? out.size() : null, ms);
+        return out != null ? out : List.of();
+    }
+
+    @Transactional
+    public List<String> getDistinctCategoriesByDateRange(LocalDate startDate, LocalDate endDate, String paymentMethod, String account, String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics.svc] -> getDistinctCategoriesByDateRange txId={} startDate={} endDate={} paymentMethod={} account={}",
+                transactionId, startDate, endDate, paymentMethod, account);
+        List<String> out = budgetTransactionRepository.findDistinctCategoriesByDateRange(startDate, endDate, blankToNull(paymentMethod), blankToNull(account));
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics.svc] <- getDistinctCategoriesByDateRange txId={} startDate={} endDate={} rows={} durationMs={}",
+                transactionId, startDate, endDate, out != null ? out.size() : null, ms);
+        return out != null ? out : List.of();
+    }
+
+    @Transactional
     public List<AnalyticsCategoryBreakdownResponse> getTopCategories(String period, int limit, String paymentMethod, String account, String transactionId) {
         transactionId = ensureTransactionId(transactionId);
         long startNs = System.nanoTime();

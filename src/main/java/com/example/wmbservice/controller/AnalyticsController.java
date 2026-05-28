@@ -191,6 +191,25 @@ public class AnalyticsController {
     }
 
     /**
+     * Distinct categories across all transactions.
+     *
+     * No query parameters: intended for populating UI dropdowns and for agents that need the
+     * global set of category values.
+     */
+    @GetMapping("/categories/distinct")
+    public ResponseEntity<List<String>> getDistinctCategories(
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /categories/distinct txId={}", transactionId);
+        List<String> result = analyticsService.getDistinctCategories(transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /categories/distinct txId={} status=200 rows={} durationMs={}",
+                transactionId, result != null ? result.size() : null, ms);
+        return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+    }
+
+    /**
      * Top N categories by spend for a period.
      */
     @GetMapping("/periods/{period}/categories/top")
@@ -213,6 +232,29 @@ public class AnalyticsController {
         long ms = (System.nanoTime() - startNs) / 1_000_000;
         logger.info("[analytics] <- GET /periods/{}/categories/top txId={} status=200 limit={} rows={} durationMs={}",
                 period, transactionId, safeLimit, result != null ? result.size() : null, ms);
+        return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
+    }
+
+    /**
+     * Distinct categories for a statement period.
+     */
+    @GetMapping("/periods/{period}/categories/distinct")
+    public ResponseEntity<List<String>> getDistinctCategoriesByPeriod(
+            @PathVariable String period,
+            @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
+        long startNs = System.nanoTime();
+        logger.info("[analytics] -> GET /periods/{}/categories/distinct txId={}", period, transactionId);
+        if (period == null || period.isBlank()) {
+            long ms = (System.nanoTime() - startNs) / 1_000_000;
+            logger.warn("[analytics] <- GET /periods/<blank>/categories/distinct txId={} status=400 durationMs={}", transactionId, ms);
+            return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
+        }
+        // No query params/filters: period-scoped only.
+        List<String> result = analyticsService.getDistinctCategories(period, null, null, transactionId);
+        long ms = (System.nanoTime() - startNs) / 1_000_000;
+        logger.info("[analytics] <- GET /periods/{}/categories/distinct txId={} status=200 rows={} durationMs={}",
+                period, transactionId, result != null ? result.size() : null, ms);
         return ResponseEntity.ok().header("X-Transaction-ID", transactionId).body(result);
     }
 
@@ -251,6 +293,7 @@ public class AnalyticsController {
             return ResponseEntity.badRequest().header("X-Transaction-ID", transactionId).build();
         }
     }
+
 
     /**
      * Sum and count by account for a period.

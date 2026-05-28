@@ -129,6 +129,14 @@ class StatementPeriodSummaryIT {
     }
 
     @Test
+    void distinctCategoriesByPeriod_returnsUniqueSortedCategories() throws Exception {
+        mockMvc.perform(get("/api/analytics/periods/FEBRUARY2020/categories/distinct"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("clothing"))
+                .andExpect(jsonPath("$[1]").value("groceries"));
+    }
+
+    @Test
     void summaryByOpenPeriod_returnsTransientSummaryWithoutPersisting() throws Exception {
         mockMvc.perform(get("/api/analytics/summaries/MAY2030"))
                 .andExpect(status().isOk())

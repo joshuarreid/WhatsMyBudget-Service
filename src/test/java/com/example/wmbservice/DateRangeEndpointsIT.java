@@ -32,16 +32,16 @@ class DateRangeEndpointsIT {
     void setup() {
         budgetTransactionRepository.deleteAll();
 
-        budgetTransactionRepository.save(tx("Coffee", "10.00", LocalDate.of(2026, 5, 1), "josh", "visa", "MAY2026", "h1"));
-        budgetTransactionRepository.save(tx("Groceries", "20.00", LocalDate.of(2026, 5, 10), "joint", "visa", "MAY2026", "h2"));
-        budgetTransactionRepository.save(tx("Gas", "5.00", LocalDate.of(2026, 6, 1), "josh", "visa", "JUNE2026", "h3"));
+        budgetTransactionRepository.save(tx("Coffee", "coffee", "10.00", LocalDate.of(2026, 5, 1), "josh", "visa", "MAY2026", "h1"));
+        budgetTransactionRepository.save(tx("Groceries", "groceries", "20.00", LocalDate.of(2026, 5, 10), "joint", "visa", "MAY2026", "h2"));
+        budgetTransactionRepository.save(tx("Gas", "gas", "5.00", LocalDate.of(2026, 6, 1), "josh", "visa", "JUNE2026", "h3"));
     }
 
-    private static BudgetTransaction tx(String name, String amount, LocalDate date, String account, String paymentMethod, String period, String rowHash) {
+    private static BudgetTransaction tx(String name, String category, String amount, LocalDate date, String account, String paymentMethod, String period, String rowHash) {
         BudgetTransaction t = new BudgetTransaction();
         t.setName(name);
         t.setAmount(new BigDecimal(amount));
-        t.setCategory("misc");
+        t.setCategory(category);
         t.setCriticality("low");
         t.setTransactionDate(date);
         t.setAccount(account);
@@ -79,6 +79,15 @@ class DateRangeEndpointsIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].account").value("josh"))
                 .andExpect(jsonPath("$[0].creditCardTotals.visa").value(20.00));
+    }
+
+    @Test
+    void distinctCategories_returnsUniqueSortedCategories() throws Exception {
+        mockMvc.perform(get("/api/analytics/categories/distinct"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("coffee"))
+                .andExpect(jsonPath("$[1]").value("gas"))
+                .andExpect(jsonPath("$[2]").value("groceries"));
     }
 }
 
