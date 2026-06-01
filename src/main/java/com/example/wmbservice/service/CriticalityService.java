@@ -63,24 +63,28 @@ public class CriticalityService {
             throw new IllegalArgumentException("Either criticality or criticality_id is required");
         }
 
-        Optional<Criticality> byId = hasId ? criticalityRepository.findById(criticalityId) : Optional.empty();
-        Optional<Criticality> byName = hasName ? criticalityRepository.findByNameIgnoreCase(criticalityName.trim()) : Optional.empty();
+        Optional<Criticality> byName = hasName
+                ? criticalityRepository.findByNameIgnoreCase(criticalityName.trim())
+                : Optional.empty();
+        Optional<Criticality> byId = hasId
+                ? criticalityRepository.findById(criticalityId)
+                : Optional.empty();
 
-        if (hasId && byId.isEmpty()) {
-            throw new IllegalArgumentException("Unknown criticality_id: " + criticalityId);
+        if (hasName) {
+            Criticality resolvedByName = byName.orElseThrow(
+                    () -> new IllegalArgumentException("Unknown criticality: " + criticalityName));
+            if (hasId && byId.isPresent() && !Objects.equals(byId.get().getId(), resolvedByName.getId())) {
+                logger.warn("criticality_id {} does not match criticality {}; overriding with {}",
+                        criticalityId, criticalityName, resolvedByName.getId());
+            } else if (hasId && byId.isEmpty()) {
+                logger.warn("Unknown criticality_id {}; overriding from criticality {}", criticalityId, criticalityName);
+            }
+            return new ResolvedCriticality(resolvedByName.getId(), resolvedByName.getName());
         }
 
-        if (hasName && byName.isEmpty()) {
-            throw new IllegalArgumentException("Unknown criticality: " + criticalityName);
-        }
-
-        if (byId.isPresent() && byName.isPresent() && !Objects.equals(byId.get().getId(), byName.get().getId())) {
-            throw new IllegalArgumentException("criticality and criticality_id do not match");
-        }
-
-        Criticality resolved = byId.or(() -> byName)
-                .orElseThrow(() -> new IllegalArgumentException("Unable to resolve criticality"));
-        return new ResolvedCriticality(resolved.getId(), resolved.getName());
+        Criticality resolvedById = byId.orElseThrow(
+                () -> new IllegalArgumentException("Unknown criticality_id: " + criticalityId));
+        return new ResolvedCriticality(resolvedById.getId(), resolvedById.getName());
     }
 
     private void saveIfMissing(long id, String name) {
