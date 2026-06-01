@@ -32,12 +32,14 @@ public interface BudgetTransactionRepository extends JpaRepository<BudgetTransac
             "AND (:account IS NULL OR t.account = :account) " +
             "AND (:category IS NULL OR t.category = :category) " +
             "AND (:criticality IS NULL OR t.criticality = :criticality) " +
+            "AND (:criticalityId IS NULL OR t.criticalityId = :criticalityId) " +
             "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
             "ORDER BY t.transactionDate DESC")
     List<BudgetTransaction> findByFilters(@Param("statementPeriod") String statementPeriod,
                                           @Param("account") String account,
                                           @Param("category") String category,
                                           @Param("criticality") String criticality,
+                                          @Param("criticalityId") Long criticalityId,
                                           @Param("paymentMethod") String paymentMethod);
 
     /**
@@ -48,14 +50,16 @@ public interface BudgetTransactionRepository extends JpaRepository<BudgetTransac
             "AND (:account IS NULL OR t.account = :account) " +
             "AND (:category IS NULL OR t.category = :category) " +
             "AND (:criticality IS NULL OR t.criticality = :criticality) " +
+            "AND (:criticalityId IS NULL OR t.criticalityId = :criticalityId) " +
             "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
             "ORDER BY t.transactionDate DESC")
     List<BudgetTransaction> findByDateRangeFilters(@Param("startDate") LocalDate startDate,
-                                                  @Param("endDate") LocalDate endDate,
-                                                  @Param("account") String account,
-                                                  @Param("category") String category,
-                                                  @Param("criticality") String criticality,
-                                                  @Param("paymentMethod") String paymentMethod);
+                                                   @Param("endDate") LocalDate endDate,
+                                                   @Param("account") String account,
+                                                   @Param("category") String category,
+                                                   @Param("criticality") String criticality,
+                                                   @Param("criticalityId") Long criticalityId,
+                                                   @Param("paymentMethod") String paymentMethod);
 
     /**
      * Fetch distinct periods seen in actual transactions.

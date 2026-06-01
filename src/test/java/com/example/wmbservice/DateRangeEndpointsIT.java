@@ -43,7 +43,8 @@ class DateRangeEndpointsIT {
         t.setName(name);
         t.setAmount(new BigDecimal(amount));
         t.setCategory(category);
-        t.setCriticality("low");
+        t.setCriticality("Planned");
+        t.setCriticalityId(3L);
         t.setTransactionDate(date);
         t.setAccount(account);
         t.setPaymentMethod(paymentMethod);
@@ -137,7 +138,7 @@ class DateRangeEndpointsIT {
                         .param("endDate", "2026-05-31")
                         .param("account", "josh"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].criticality").value("low"))
+                .andExpect(jsonPath("$[0].criticality").value("Planned"))
                 .andExpect(jsonPath("$[0].totalAmount").value(20.00))
                 .andExpect(jsonPath("$[0].transactionCount").value(2));
     }
@@ -147,6 +148,17 @@ class DateRangeEndpointsIT {
         mockMvc.perform(get("/api/transactions")
                         .param("startDate", "2026-05-01")
                         .param("endDate", "2026-05-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.transactions[0].criticality_id").value(3));
+    }
+
+    @Test
+    void transactionsListByDateRange_filtersByCriticalityId() throws Exception {
+        mockMvc.perform(get("/api/transactions")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-31")
+                        .param("criticality_id", "3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(2));
     }
@@ -171,4 +183,3 @@ class DateRangeEndpointsIT {
                 .andExpect(jsonPath("$[2]").value("groceries"));
     }
 }
-

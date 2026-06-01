@@ -36,6 +36,7 @@ public class BudgetTransactionService {
     private final BudgetTransactionCsvImporter csvImporter;
     private final StatementPeriodRepository statementPeriodRepository;
     private final BankStatementService bankStatementService;
+    private final CriticalityService criticalityService;
 
     // Regex enforces FULL MONTH NAME (uppercase or mixed-case normalized) followed by 4-digit year e.g. OCTOBER2025
     private static final Pattern PERIOD_NAME_PATTERN = Pattern.compile(
@@ -46,11 +47,13 @@ public class BudgetTransactionService {
     public BudgetTransactionService(BudgetTransactionRepository repository,
                                     BudgetTransactionCsvImporter csvImporter,
                                     StatementPeriodRepository statementPeriodRepository,
-                                    BankStatementService bankStatementService) {
+                                    BankStatementService bankStatementService,
+                                    CriticalityService criticalityService) {
         this.repository = repository;
         this.csvImporter = csvImporter;
         this.statementPeriodRepository = statementPeriodRepository;
         this.bankStatementService = bankStatementService;
+        this.criticalityService = criticalityService;
         logger.info("BudgetTransactionService initialized with BankStatementService and repositories.");
     }
 
@@ -90,6 +93,7 @@ public class BudgetTransactionService {
         String rawPeriod = transaction.getStatementPeriod();
         String normalizedPeriod = normalizeAndEnsureStatementPeriod(rawPeriod, transactionId);
         transaction.setStatementPeriod(normalizedPeriod);
+        criticalityService.normalize(transaction);
 
         // If transactionDate is null (hand-add), set to current date
         if (transaction.getTransactionDate() == null) {
@@ -132,16 +136,16 @@ public class BudgetTransactionService {
      * @return BudgetTransactionList containing transactions, count and total.
      */
     @Transactional
-    public BudgetTransactionList getTransactions(String statementPeriod, String account, String category, String criticality, String paymentMethod, String transactionId) {
-        logger.info("getTransactions entered. transactionId={}, filters: statementPeriod={}, account={}, category={}, criticality= {}, paymentMethod={}",
-                transactionId, statementPeriod, account, category, criticality, paymentMethod);
+    public BudgetTransactionList getTransactions(String statementPeriod, String account, String category, String criticality, Long criticalityId, String paymentMethod, String transactionId) {
+        logger.info("getTransactions entered. transactionId={}, filters: statementPeriod={}, account={}, category={}, criticality={}, criticalityId={}, paymentMethod={}",
+                transactionId, statementPeriod, account, category, criticality, criticalityId, paymentMethod);
 
         List<BudgetTransaction> results;
         if (statementPeriod == null || statementPeriod.isBlank()) {
             results = repository.findAll();
             logger.debug("All transactions fetched. transactionId={}, count={}", transactionId, results.size());
         } else {
-            results = repository.findByFilters(statementPeriod, account, category, criticality, paymentMethod);
+            results = repository.findByFilters(statementPeriod, account, category, criticality, criticalityId, paymentMethod);
             logger.debug("Filtered transactions fetched. transactionId={}, count={}", transactionId, results.size());
         }
         logger.info("getTransactions successful. transactionId={}, resultCount={}", transactionId, results.size());
@@ -153,20 +157,21 @@ public class BudgetTransactionService {
      */
     @Transactional
     public BudgetTransactionList getTransactionsByDateRange(LocalDate startDate,
-                                                           LocalDate endDate,
-                                                           String account,
-                                                           String category,
-                                                           String criticality,
-                                                           String paymentMethod,
-                                                           String transactionId) {
-        logger.info("getTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, criticality={}, paymentMethod={}",
-                transactionId, startDate, endDate, account, category, criticality, paymentMethod);
+                                                            LocalDate endDate,
+                                                            String account,
+                                                            String category,
+                                                            String criticality,
+                                                            Long criticalityId,
+                                                            String paymentMethod,
+                                                            String transactionId) {
+        logger.info("getTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, criticality={}, criticalityId={}, paymentMethod={}",
+                transactionId, startDate, endDate, account, category, criticality, criticalityId, paymentMethod);
 
         if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("startDate/endDate are required and must form a valid inclusive range");
         }
 
-        List<BudgetTransaction> results = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, paymentMethod);
+        List<BudgetTransaction> results = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, criticalityId, paymentMethod);
         logger.info("getTransactionsByDateRange successful. transactionId={}, resultCount={}", transactionId, results.size());
         return new BudgetTransactionList(results);
     }
@@ -180,6 +185,7 @@ public class BudgetTransactionService {
             String statementPeriod,
             String category,
             String criticality,
+            Long criticalityId,
             String paymentMethod,
             String transactionId
     ) {
@@ -190,13 +196,13 @@ public class BudgetTransactionService {
 
         if ("joint".equalsIgnoreCase(account)) {
             // Only joint transactions
-            jointTxs = repository.findByFilters(statementPeriod, "joint", category, criticality, paymentMethod);
+            jointTxs = repository.findByFilters(statementPeriod, "joint", category, criticality, criticalityId, paymentMethod);
         } else {
             // Personal transactions
-            personalTxs = repository.findByFilters(statementPeriod, account, category, criticality, paymentMethod);
+            personalTxs = repository.findByFilters(statementPeriod, account, category, criticality, criticalityId, paymentMethod);
 
             // Joint transactions, split for this account
-            List<BudgetTransaction> jointRaw = repository.findByFilters(statementPeriod, "joint", category, criticality, paymentMethod);
+            List<BudgetTransaction> jointRaw = repository.findByFilters(statementPeriod, "joint", category, criticality, criticalityId, paymentMethod);
             for (BudgetTransaction jt : jointRaw) {
                 BudgetTransaction split = new BudgetTransaction();
                 split.setId(jt.getId());
@@ -205,6 +211,7 @@ public class BudgetTransactionService {
                 split.setAmount(jt.getAmount() != null ? jt.getAmount().divide(new java.math.BigDecimal("2.00"), 2, java.math.RoundingMode.HALF_UP) : null);
                 split.setCategory(jt.getCategory());
                 split.setCriticality(jt.getCriticality());
+                split.setCriticalityId(jt.getCriticalityId());
                 split.setTransactionDate(jt.getTransactionDate());
                 split.setStatus(jt.getStatus());
                 split.setPaymentMethod(jt.getPaymentMethod());
@@ -229,6 +236,7 @@ public class BudgetTransactionService {
             LocalDate endDate,
             String category,
             String criticality,
+            Long criticalityId,
             String paymentMethod,
             String transactionId
     ) {
@@ -243,11 +251,11 @@ public class BudgetTransactionService {
         List<BudgetTransaction> jointTxs = new ArrayList<>();
 
         if ("joint".equalsIgnoreCase(account)) {
-            jointTxs = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
+            jointTxs = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, criticalityId, paymentMethod);
         } else {
-            personalTxs = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, paymentMethod);
+            personalTxs = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, criticalityId, paymentMethod);
 
-            List<BudgetTransaction> jointRaw = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
+            List<BudgetTransaction> jointRaw = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, criticalityId, paymentMethod);
             for (BudgetTransaction jt : jointRaw) {
                 BudgetTransaction split = new BudgetTransaction();
                 split.setId(jt.getId());
@@ -256,6 +264,7 @@ public class BudgetTransactionService {
                 split.setAmount(jt.getAmount() != null ? jt.getAmount().divide(new java.math.BigDecimal("2.00"), 2, java.math.RoundingMode.HALF_UP) : null);
                 split.setCategory(jt.getCategory());
                 split.setCriticality(jt.getCriticality());
+                split.setCriticalityId(jt.getCriticalityId());
                 split.setTransactionDate(jt.getTransactionDate());
                 split.setStatus(jt.getStatus());
                 split.setPaymentMethod(jt.getPaymentMethod());
@@ -323,12 +332,14 @@ public class BudgetTransactionService {
             String normalized = normalizeAndEnsureStatementPeriod(updated.getStatementPeriod(), transactionId);
             existing.setStatementPeriod(normalized);
         }
+        criticalityService.normalize(updated);
 
         // Copy updatable fields to existing transaction
         existing.setName(updated.getName());
         existing.setAmount(updated.getAmount());
         existing.setCategory(updated.getCategory());
         existing.setCriticality(updated.getCriticality());
+        existing.setCriticalityId(updated.getCriticalityId());
         existing.setTransactionDate(updated.getTransactionDate());
         existing.setAccount(updated.getAccount());
         existing.setStatus(updated.getStatus());

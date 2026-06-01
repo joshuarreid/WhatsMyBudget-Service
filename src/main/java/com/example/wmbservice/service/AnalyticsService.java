@@ -512,12 +512,12 @@ public class AnalyticsService {
     }
 
     private List<BudgetTransaction> getEffectiveTransactionsForPeriod(String period, String paymentMethod, String account) {
-        List<BudgetTransaction> transactions = budgetTransactionRepository.findByFilters(period, null, null, null, blankToNull(paymentMethod));
+        List<BudgetTransaction> transactions = budgetTransactionRepository.findByFilters(period, null, null, null, null, blankToNull(paymentMethod));
         return applyJointSplit(transactions, account);
     }
 
     private List<BudgetTransaction> getEffectiveTransactionsByDateRange(LocalDate startDate, LocalDate endDate, String paymentMethod, String account) {
-        List<BudgetTransaction> transactions = budgetTransactionRepository.findByDateRangeFilters(startDate, endDate, null, null, null, blankToNull(paymentMethod));
+        List<BudgetTransaction> transactions = budgetTransactionRepository.findByDateRangeFilters(startDate, endDate, null, null, null, null, blankToNull(paymentMethod));
         return applyJointSplit(transactions, account);
     }
 

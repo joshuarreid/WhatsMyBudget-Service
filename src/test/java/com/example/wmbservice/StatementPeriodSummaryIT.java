@@ -79,6 +79,12 @@ class StatementPeriodSummaryIT {
         t.setAmount(new BigDecimal(amount));
         t.setCategory(category);
         t.setCriticality(criticality);
+        t.setCriticalityId(switch (criticality) {
+            case "Essential" -> 1L;
+            case "Nonessential" -> 2L;
+            case "Planned" -> 3L;
+            default -> null;
+        });
         t.setTransactionDate(date);
         t.setAccount(account);
         t.setPaymentMethod(paymentMethod);
@@ -149,4 +155,3 @@ class StatementPeriodSummaryIT {
         Assertions.assertThat(statementPeriodSummaryRepository.findByStatementPeriod("MAY2030")).isEmpty();
     }
 }
-

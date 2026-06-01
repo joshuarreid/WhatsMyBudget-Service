@@ -1,11 +1,23 @@
 -- MySQL 8 Schema for Statement-Based Budgeting Application (No ENUM columns, all VARCHAR, semicolons after each statement)
 
+CREATE TABLE criticality (
+    id BIGINT PRIMARY KEY,
+    name VARCHAR(32) NOT NULL UNIQUE,
+    INDEX idx_criticality_name (name)
+);
+
+INSERT INTO criticality (id, name) VALUES
+    (1, 'Essential'),
+    (2, 'Nonessential'),
+    (3, 'Planned');
+
 CREATE TABLE budget_transactions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     category VARCHAR(128) NOT NULL,
     criticality VARCHAR(32) NOT NULL,
+    criticality_id BIGINT,
     transaction_date DATE NOT NULL,
     account VARCHAR(32) NOT NULL,
     status VARCHAR(64),
@@ -18,7 +30,9 @@ CREATE TABLE budget_transactions (
     INDEX idx_budget_account (account),
     INDEX idx_budget_payment_method (payment_method),
     INDEX idx_budget_category (category),
-    INDEX idx_budget_row_hash (row_hash)
+    INDEX idx_budget_row_hash (row_hash),
+    INDEX idx_budget_criticality_id (criticality_id),
+    CONSTRAINT fk_budget_transaction_criticality FOREIGN KEY (criticality_id) REFERENCES criticality(id)
 );
 
 CREATE TABLE projected_transactions (
@@ -27,6 +41,7 @@ CREATE TABLE projected_transactions (
     amount DECIMAL(12,2) NOT NULL,
     category VARCHAR(128) NOT NULL,
     criticality VARCHAR(32) NOT NULL,
+    criticality_id BIGINT,
     transaction_date DATE,
     account VARCHAR(32) NOT NULL,
     status VARCHAR(64),
@@ -37,7 +52,9 @@ CREATE TABLE projected_transactions (
     INDEX idx_projected_transaction_date (transaction_date),
     INDEX idx_projected_account (account),
     INDEX idx_projected_payment_method (payment_method),
-    INDEX idx_projected_category (category)
+    INDEX idx_projected_category (category),
+    INDEX idx_projected_criticality_id (criticality_id),
+    CONSTRAINT fk_projected_transaction_criticality FOREIGN KEY (criticality_id) REFERENCES criticality(id)
 );
 
 CREATE TABLE statement_periods (

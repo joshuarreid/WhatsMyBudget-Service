@@ -34,6 +34,7 @@ public class ProjectedTransactionService {
     private static final Logger logger = LoggerFactory.getLogger(ProjectedTransactionService.class);
     private final ProjectedTransactionRepository repository;
     private final StatementPeriodRepository statementPeriodRepository;
+    private final CriticalityService criticalityService;
 
     // Regex enforces FULL MONTH NAME followed by 4-digit year, e.g. OCTOBER2025
     private static final Pattern PERIOD_NAME_PATTERN = Pattern.compile(
@@ -42,9 +43,11 @@ public class ProjectedTransactionService {
     );
 
     public ProjectedTransactionService(ProjectedTransactionRepository repository,
-                                      StatementPeriodRepository statementPeriodRepository) {
+                                       StatementPeriodRepository statementPeriodRepository,
+                                       CriticalityService criticalityService) {
         this.repository = repository;
         this.statementPeriodRepository = statementPeriodRepository;
+        this.criticalityService = criticalityService;
     }
 
     /**
@@ -83,6 +86,7 @@ public class ProjectedTransactionService {
         String rawPeriod = transaction.getStatementPeriod();
         String normalizedPeriod = normalizeAndEnsureStatementPeriod(rawPeriod, transactionId);
         transaction.setStatementPeriod(normalizedPeriod);
+        criticalityService.normalize(transaction);
 
         if (transaction.getTransactionDate() == null) {
             LocalDate now = LocalDate.now();
@@ -160,14 +164,14 @@ public class ProjectedTransactionService {
      * @return ProjectedTransactionList containing the results.
      */
     @Transactional
-    public ProjectedTransactionList getTransactions(String statementPeriod, String account, String category, String criticality, String paymentMethod, String transactionId) {
-        logger.info("getProjectedTransactions entered. transactionId={}, filters: statementPeriod={}, account={}, category={}, criticality={}, paymentMethod={}",
-                transactionId, statementPeriod, account, category, criticality, paymentMethod);
+    public ProjectedTransactionList getTransactions(String statementPeriod, String account, String category, String criticality, Long criticalityId, String paymentMethod, String transactionId) {
+        logger.info("getProjectedTransactions entered. transactionId={}, filters: statementPeriod={}, account={}, category={}, criticality={}, criticalityId={}, paymentMethod={}",
+                transactionId, statementPeriod, account, category, criticality, criticalityId, paymentMethod);
 
         List<ProjectedTransaction> results;
         if (statementPeriod != null || account != null || category != null || criticality != null || paymentMethod != null) {
             logger.debug("Fetching filtered projected transactions. transactionId={}", transactionId);
-            results = repository.findByFilters(statementPeriod, account, category, criticality, paymentMethod);
+            results = repository.findByFilters(statementPeriod, account, category, criticality, criticalityId, paymentMethod);
             logger.debug("Filtered projected transactions fetched. transactionId={}, count={}", transactionId, results.size());
         } else {
             logger.debug("Fetching all projected transactions. transactionId={}", transactionId);
@@ -186,20 +190,21 @@ public class ProjectedTransactionService {
      */
     @Transactional
     public ProjectedTransactionList getTransactionsByDateRange(LocalDate startDate,
-                                                               LocalDate endDate,
-                                                               String account,
-                                                               String category,
-                                                               String criticality,
-                                                               String paymentMethod,
-                                                               String transactionId) {
-        logger.info("getProjectedTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, criticality={}, paymentMethod={}",
-                transactionId, startDate, endDate, account, category, criticality, paymentMethod);
+                                                                LocalDate endDate,
+                                                                String account,
+                                                                String category,
+                                                                String criticality,
+                                                                Long criticalityId,
+                                                                String paymentMethod,
+                                                                String transactionId) {
+        logger.info("getProjectedTransactionsByDateRange entered. transactionId={}, startDate={}, endDate={}, account={}, category={}, criticality={}, criticalityId={}, paymentMethod={}",
+                transactionId, startDate, endDate, account, category, criticality, criticalityId, paymentMethod);
 
         if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
             throw new IllegalArgumentException("startDate/endDate are required and must form a valid inclusive range");
         }
 
-        List<ProjectedTransaction> results = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, paymentMethod);
+        List<ProjectedTransaction> results = repository.findByDateRangeFilters(startDate, endDate, account, category, criticality, criticalityId, paymentMethod);
         logger.info("getProjectedTransactionsByDateRange successful. transactionId={}, resultCount={}", transactionId, results.size());
         return new ProjectedTransactionList(results);
     }
@@ -235,12 +240,14 @@ public class ProjectedTransactionService {
             String normalized = normalizeAndEnsureStatementPeriod(updated.getStatementPeriod(), transactionId);
             existing.setStatementPeriod(normalized);
         }
+        criticalityService.normalize(updated);
 
         // Copy updatable fields
         existing.setName(updated.getName());
         existing.setAmount(updated.getAmount());
         existing.setCategory(updated.getCategory());
         existing.setCriticality(updated.getCriticality());
+        existing.setCriticalityId(updated.getCriticalityId());
         existing.setTransactionDate(updated.getTransactionDate());
         existing.setAccount(updated.getAccount());
         existing.setStatus(updated.getStatus());
@@ -433,6 +440,7 @@ public class ProjectedTransactionService {
             String statementPeriod,
             String category,
             String criticality,
+            Long criticalityId,
             String paymentMethod,
             String transactionId
     ) {
@@ -443,10 +451,10 @@ public class ProjectedTransactionService {
 
         String normalizedAccount = account == null ? null : account.trim().toLowerCase();
         if ("joint".equalsIgnoreCase(normalizedAccount)) {
-            jointTxs = repository.findByFilters(statementPeriod, "joint", category, criticality, paymentMethod);
+            jointTxs = repository.findByFilters(statementPeriod, "joint", category, criticality, criticalityId, paymentMethod);
         } else {
-            personalTxs = repository.findByFilters(statementPeriod, normalizedAccount, category, criticality, paymentMethod);
-            java.util.List<com.example.wmbservice.model.ProjectedTransaction> jointRaw = repository.findByFilters(statementPeriod, "joint", category, criticality, paymentMethod);
+            personalTxs = repository.findByFilters(statementPeriod, normalizedAccount, category, criticality, criticalityId, paymentMethod);
+            java.util.List<com.example.wmbservice.model.ProjectedTransaction> jointRaw = repository.findByFilters(statementPeriod, "joint", category, criticality, criticalityId, paymentMethod);
             for (com.example.wmbservice.model.ProjectedTransaction jt : jointRaw) {
                 com.example.wmbservice.model.ProjectedTransaction split = new com.example.wmbservice.model.ProjectedTransaction();
                 split.setId(jt.getId());
@@ -455,6 +463,7 @@ public class ProjectedTransactionService {
                 split.setAmount(jt.getAmount() != null ? jt.getAmount().divide(new java.math.BigDecimal("2.00"), 2, java.math.RoundingMode.HALF_UP) : null);
                 split.setCategory(jt.getCategory());
                 split.setCriticality(jt.getCriticality());
+                split.setCriticalityId(jt.getCriticalityId());
                 split.setTransactionDate(jt.getTransactionDate());
                 split.setStatus(jt.getStatus());
                 split.setPaymentMethod(jt.getPaymentMethod());
@@ -479,6 +488,7 @@ public class ProjectedTransactionService {
             LocalDate endDate,
             String category,
             String criticality,
+            Long criticalityId,
             String paymentMethod,
             String transactionId
     ) {
@@ -494,10 +504,10 @@ public class ProjectedTransactionService {
 
         String normalizedAccount = account == null ? null : account.trim().toLowerCase();
         if ("joint".equalsIgnoreCase(normalizedAccount)) {
-            jointTxs = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
+            jointTxs = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, criticalityId, paymentMethod);
         } else {
-            personalTxs = repository.findByDateRangeFilters(startDate, endDate, normalizedAccount, category, criticality, paymentMethod);
-            java.util.List<com.example.wmbservice.model.ProjectedTransaction> jointRaw = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, paymentMethod);
+            personalTxs = repository.findByDateRangeFilters(startDate, endDate, normalizedAccount, category, criticality, criticalityId, paymentMethod);
+            java.util.List<com.example.wmbservice.model.ProjectedTransaction> jointRaw = repository.findByDateRangeFilters(startDate, endDate, "joint", category, criticality, criticalityId, paymentMethod);
             for (com.example.wmbservice.model.ProjectedTransaction jt : jointRaw) {
                 com.example.wmbservice.model.ProjectedTransaction split = new com.example.wmbservice.model.ProjectedTransaction();
                 split.setId(jt.getId());
@@ -506,6 +516,7 @@ public class ProjectedTransactionService {
                 split.setAmount(jt.getAmount() != null ? jt.getAmount().divide(new java.math.BigDecimal("2.00"), 2, java.math.RoundingMode.HALF_UP) : null);
                 split.setCategory(jt.getCategory());
                 split.setCriticality(jt.getCriticality());
+                split.setCriticalityId(jt.getCriticalityId());
                 split.setTransactionDate(jt.getTransactionDate());
                 split.setStatus(jt.getStatus());
                 split.setPaymentMethod(jt.getPaymentMethod());

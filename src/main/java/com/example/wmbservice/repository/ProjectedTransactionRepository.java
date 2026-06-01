@@ -25,12 +25,14 @@ public interface ProjectedTransactionRepository extends JpaRepository<ProjectedT
             "AND (:account IS NULL OR LOWER(t.account) = LOWER(:account)) " +
             "AND (:category IS NULL OR t.category = :category) " +
             "AND (:criticality IS NULL OR t.criticality = :criticality) " +
+            "AND (:criticalityId IS NULL OR t.criticalityId = :criticalityId) " +
             "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
             "ORDER BY t.createdTime DESC")
     List<ProjectedTransaction> findByFilters(@Param("statementPeriod") String statementPeriod,
                                              @Param("account") String account,
                                              @Param("category") String category,
                                              @Param("criticality") String criticality,
+                                             @Param("criticalityId") Long criticalityId,
                                              @Param("paymentMethod") String paymentMethod);
 
     /**
@@ -42,14 +44,16 @@ public interface ProjectedTransactionRepository extends JpaRepository<ProjectedT
             "AND (:account IS NULL OR LOWER(t.account) = LOWER(:account)) " +
             "AND (:category IS NULL OR t.category = :category) " +
             "AND (:criticality IS NULL OR t.criticality = :criticality) " +
+            "AND (:criticalityId IS NULL OR t.criticalityId = :criticalityId) " +
             "AND (:paymentMethod IS NULL OR t.paymentMethod = :paymentMethod) " +
             "ORDER BY t.createdTime DESC")
     List<ProjectedTransaction> findByDateRangeFilters(@Param("startDate") LocalDate startDate,
-                                                     @Param("endDate") LocalDate endDate,
-                                                     @Param("account") String account,
-                                                     @Param("category") String category,
-                                                     @Param("criticality") String criticality,
-                                                     @Param("paymentMethod") String paymentMethod);
+                                                      @Param("endDate") LocalDate endDate,
+                                                      @Param("account") String account,
+                                                      @Param("category") String category,
+                                                      @Param("criticality") String criticality,
+                                                      @Param("criticalityId") Long criticalityId,
+                                                      @Param("paymentMethod") String paymentMethod);
 
     /**
      * Find a projected transaction by business-key columns (same semantics as row_hash lookup,

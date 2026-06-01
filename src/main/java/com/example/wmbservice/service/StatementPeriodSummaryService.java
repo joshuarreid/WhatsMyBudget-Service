@@ -191,7 +191,7 @@ public class StatementPeriodSummaryService {
                                                                  LocalDateTime generatedAt) {
         // Load all transactions for the period and group by account.
         // NOTE: We intentionally do not use resolveBounds(...) for response dates.
-        List<BudgetTransaction> all = budgetTransactionRepository.findByFilters(periodName, null, null, null, null);
+        List<BudgetTransaction> all = budgetTransactionRepository.findByFilters(periodName, null, null, null, null, null);
         Map<String, List<BudgetTransaction>> byAccount = all.stream()
                 .collect(Collectors.groupingBy(t -> safeKey(t.getAccount()), LinkedHashMap::new, Collectors.toList()));
 
@@ -459,5 +459,4 @@ public class StatementPeriodSummaryService {
     private record PeriodBounds(LocalDate startDate, LocalDate endDate) {
     }
 }
-
 

@@ -101,6 +101,7 @@ Query params (all optional):
 - `account`
 - `category`
 - `criticality`
+- `criticality_id`
 - `paymentMethod`
 
 Notes:
@@ -135,6 +136,7 @@ Query params:
 - `endDate` *(optional; requires `startDate`)*
 - `category` *(optional)*
 - `criticality` *(optional)*
+- `criticality_id` *(optional)*
 - `paymentMethod` *(optional)*
 
 Notes:
@@ -156,6 +158,7 @@ Base path: `/api/v2/projected-transactions`
 
 Body:
 - `ProjectedTransaction` (JSON)
+- Supports both `criticality` and `criticality_id`; during transition, responses return both fields.
 
 Responses:
 - `201 Created` → `ProjectedTransaction`
@@ -173,6 +176,7 @@ Query params (all optional):
 - `account`
 - `category`
 - `criticality`
+- `criticality_id`
 - `paymentMethod`
 
 Notes:
@@ -196,6 +200,7 @@ Responses:
 
 Body:
 - `ProjectedTransaction` (JSON)
+- Supports both `criticality` and `criticality_id`; during transition, responses return both fields.
 
 Responses:
 - `200 OK` → `ProjectedTransaction`
@@ -229,6 +234,7 @@ Query params:
 - `statementPeriod` *(optional)*
 - `category` *(optional)*
 - `criticality` *(optional)*
+- `criticality_id` *(optional)*
 - `paymentMethod` *(optional)*
 
 Response:
@@ -296,4 +302,3 @@ Response:
 ```json
 { "deletedCount": 123 }
 ```
-

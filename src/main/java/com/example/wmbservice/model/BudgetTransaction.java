@@ -1,7 +1,13 @@
 package com.example.wmbservice.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
@@ -55,10 +61,14 @@ public class BudgetTransaction {
     @Column(nullable = false)
     private String category;
 
-    @NotBlank
     @Size(max = 32)
     @Column(nullable = false)
     private String criticality;
+
+    @JsonProperty("criticality_id")
+    @JsonAlias("criticalityId")
+    @Column(name = "criticality_id")
+    private Long criticalityId;
 
     @NotNull
     @Column(name = "transaction_date", nullable = false)
@@ -139,6 +149,7 @@ public class BudgetTransaction {
                 ", amount=" + amount +
                 ", category='" + category + '\'' +
                 ", criticality='" + criticality + '\'' +
+                ", criticalityId=" + criticalityId +
                 ", transactionDate=" + transactionDate +
                 ", account='" + account + '\'' +
                 ", status='" + status + '\'' +

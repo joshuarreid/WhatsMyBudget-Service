@@ -83,6 +83,7 @@ public class ProjectedTransactionController {
             @RequestParam(value = "account", required = false) String account,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
@@ -90,7 +91,7 @@ public class ProjectedTransactionController {
                 transactionId, statementPeriod, account, category, criticality, paymentMethod);
 
         try {
-            ProjectedTransactionList result = projectedTransactionService.getTransactions(statementPeriod, account, category, criticality, paymentMethod, transactionId);
+            ProjectedTransactionList result = projectedTransactionService.getTransactions(statementPeriod, account, category, criticality, criticalityId, paymentMethod, transactionId);
             logger.info("getProjectedTransactions successful. transactionId={}, resultCount={}", transactionId, result.getCount());
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
@@ -113,6 +114,7 @@ public class ProjectedTransactionController {
             @RequestParam(value = "account", required = false) String account,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
@@ -123,7 +125,7 @@ public class ProjectedTransactionController {
             LocalDate s = LocalDate.parse(startDate.trim());
             LocalDate e = LocalDate.parse(endDate.trim());
             ProjectedTransactionList result = projectedTransactionService.getTransactionsByDateRange(
-                    s, e, account, category, criticality, paymentMethod, transactionId);
+                    s, e, account, category, criticality, criticalityId, paymentMethod, transactionId);
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
                     .body(result);
@@ -286,13 +288,14 @@ public class ProjectedTransactionController {
             @RequestParam(value = "statementPeriod", required = false) String statementPeriod,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
         logger.info("getAccountProjectedTransactionList entered. transactionId={}, account={}", transactionId, account);
         try {
             com.example.wmbservice.model.AccountProjectedTransactionList result = projectedTransactionService.getAccountProjectedTransactionList(
-                    account, statementPeriod, category, criticality, paymentMethod, transactionId);
+                    account, statementPeriod, category, criticality, criticalityId, paymentMethod, transactionId);
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
                     .body(result);
@@ -314,6 +317,7 @@ public class ProjectedTransactionController {
             @RequestParam(value = "endDate") String endDate,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
@@ -323,7 +327,7 @@ public class ProjectedTransactionController {
             LocalDate s = LocalDate.parse(startDate.trim());
             LocalDate e = LocalDate.parse(endDate.trim());
             com.example.wmbservice.model.AccountProjectedTransactionList result = projectedTransactionService.getAccountProjectedTransactionListByDateRange(
-                    account, s, e, category, criticality, paymentMethod, transactionId);
+                    account, s, e, category, criticality, criticalityId, paymentMethod, transactionId);
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
                     .body(result);

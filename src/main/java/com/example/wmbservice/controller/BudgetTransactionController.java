@@ -79,6 +79,7 @@ public class BudgetTransactionController {
             @RequestParam(value = "account", required = false) String account,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
@@ -87,7 +88,7 @@ public class BudgetTransactionController {
 
         try {
             BudgetTransactionList result = budgetTransactionService.getTransactions(
-                    statementPeriod, account, category, criticality, paymentMethod, transactionId);
+                    statementPeriod, account, category, criticality, criticalityId, paymentMethod, transactionId);
             logger.info("getTransactions successful. transactionId={}, resultCount={}, total={}", transactionId, result.getCount(), result.getTotal());
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
@@ -111,6 +112,7 @@ public class BudgetTransactionController {
             @RequestParam(value = "account", required = false) String account,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
@@ -121,7 +123,7 @@ public class BudgetTransactionController {
             LocalDate s = LocalDate.parse(startDate.trim());
             LocalDate e = LocalDate.parse(endDate.trim());
             BudgetTransactionList result = budgetTransactionService.getTransactionsByDateRange(
-                    s, e, account, category, criticality, paymentMethod, transactionId);
+                    s, e, account, category, criticality, criticalityId, paymentMethod, transactionId);
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
                     .body(result);
@@ -156,6 +158,7 @@ public class BudgetTransactionController {
             @RequestParam(value = "statementPeriod", required = false) String statementPeriod,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId
     ) {
@@ -163,7 +166,7 @@ public class BudgetTransactionController {
 
         try {
             AccountBudgetTransactionList result = budgetTransactionService.getAccountBudgetTransactionList(
-                    account, statementPeriod, category, criticality, paymentMethod, transactionId);
+                    account, statementPeriod, category, criticality, criticalityId, paymentMethod, transactionId);
             logger.info("getTransactionsForAccount successful. transactionId={}, account={}, personalCount={}, jointCount={}, total={}",
                     transactionId, account, result.getPersonalTransactions().getCount(), result.getJointTransactions().getCount(), result.getTotal());
             return ResponseEntity.ok()
@@ -187,6 +190,7 @@ public class BudgetTransactionController {
             @RequestParam("endDate") String endDate,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "criticality", required = false) String criticality,
+            @RequestParam(value = "criticality_id", required = false) Long criticalityId,
             @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId
     ) {
@@ -197,7 +201,7 @@ public class BudgetTransactionController {
             LocalDate s = LocalDate.parse(startDate.trim());
             LocalDate e = LocalDate.parse(endDate.trim());
             AccountBudgetTransactionList result = budgetTransactionService.getAccountBudgetTransactionListByDateRange(
-                    account, s, e, category, criticality, paymentMethod, transactionId);
+                    account, s, e, category, criticality, criticalityId, paymentMethod, transactionId);
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
                     .body(result);

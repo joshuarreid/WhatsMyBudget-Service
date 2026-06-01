@@ -32,7 +32,7 @@ public class PaymentSummaryService {
         }
         String normalizedPeriod = statementPeriod.trim().toUpperCase(Locale.ENGLISH);
         // Fetch all transactions for the relevant period
-        List<BudgetTransaction> allTx = budgetTransactionService.getTransactions(normalizedPeriod, null, null, null, null, transactionId).getTransactions();
+        List<BudgetTransaction> allTx = budgetTransactionService.getTransactions(normalizedPeriod, null, null, null, null, null, transactionId).getTransactions();
         List<PaymentSummaryResponse> summaries = new ArrayList<>();
         Map<String, String> normalizedAccountMap = accountList.stream()
             .filter(Objects::nonNull)
@@ -135,7 +135,7 @@ public class PaymentSummaryService {
         }
 
         List<BudgetTransaction> allTx = budgetTransactionService.getTransactionsByDateRange(
-                startDate, endDate, null, null, null, null, transactionId).getTransactions();
+                startDate, endDate, null, null, null, null, null, transactionId).getTransactions();
 
         // Reuse the existing logic by temporarily treating it as a single period's worth of data
         // (the math is based only on transaction fields).
