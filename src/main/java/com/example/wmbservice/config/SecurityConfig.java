@@ -7,25 +7,17 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-    private final IpAllowlistFilter ipAllowlistFilter;
-
-    public SecurityConfig(IpAllowlistFilter ipAllowlistFilter) {
-        this.ipAllowlistFilter = ipAllowlistFilter;
-    }
-
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 // Ensure CORS is handled inside Spring Security (so preflights aren't blocked)
                 .cors(Customizer.withDefaults())
-                .addFilterBefore(ipAllowlistFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         // Allow all CORS preflight requests
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
