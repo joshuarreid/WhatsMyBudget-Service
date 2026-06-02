@@ -63,6 +63,7 @@ Config env vars:
 - `WMB_MAX_LOGIN_ATTEMPTS` (default `10`)
 - `WMB_LOGIN_LOCK_SECONDS` (default `300`)
 - `WMB_ATTEMPT_CACHE_TTL_SECONDS` (default `3600`)
+- `WHITELISTED_IPS` (optional, comma-separated; when set, only listed IPs can access the API)
 
 ---
 
