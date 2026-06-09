@@ -4,7 +4,6 @@ import com.example.wmbservice.model.PaymentSummaryResponse;
 import com.example.wmbservice.service.PaymentSummaryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,28 +28,24 @@ public class PaymentSummaryControllerV2 {
     }
 
     @GetMapping
-    public ResponseEntity<?> getPaymentSummary(
+    public ResponseEntity<List<PaymentSummaryResponse>> getPaymentSummary(
             @RequestParam(value = "accounts") String accounts,
             @RequestParam(value = "statementPeriod") String statementPeriod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
         logger.info("[v2] getPaymentSummary entered. transactionId={}, statementPeriod={}, accounts={}", transactionId, statementPeriod, accounts);
         if (statementPeriod == null || statementPeriod.isBlank()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .header("X-Transaction-ID", transactionId)
-                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "VALIDATION_ERROR", "statementPeriod is required", transactionId));
+            return ResponseEntity.badRequest().body(null);
         }
         List<String> accountList = Arrays.stream(accounts.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
         List<PaymentSummaryResponse> summaries = paymentSummaryService.getPaymentSummary(accountList, statementPeriod, transactionId);
-        return ResponseEntity.ok()
-                .header("X-Transaction-ID", transactionId)
-                .body(summaries);
+        return ResponseEntity.ok(summaries);
     }
 
     @GetMapping(params = {"accounts", "startDate", "endDate"})
-    public ResponseEntity<?> getPaymentSummaryByDateRange(
+    public ResponseEntity<List<PaymentSummaryResponse>> getPaymentSummaryByDateRange(
             @RequestParam(value = "accounts") String accounts,
             @RequestParam(value = "startDate") String startDate,
             @RequestParam(value = "endDate") String endDate,
@@ -68,32 +63,9 @@ public class PaymentSummaryControllerV2 {
                     .collect(Collectors.toList());
 
             List<PaymentSummaryResponse> summaries = paymentSummaryService.getPaymentSummaryByDateRange(accountList, s, e, transactionId);
-            return ResponseEntity.ok()
-                    .header("X-Transaction-ID", transactionId)
-                    .body(summaries);
-        } catch (DateTimeParseException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .header("X-Transaction-ID", transactionId)
-                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "BAD_REQUEST",
-                            "Invalid date format. Expected ISO-8601 (YYYY-MM-DD): " + ex.getMessage(), transactionId));
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .header("X-Transaction-ID", transactionId)
-                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "BAD_REQUEST", ex.getMessage(), transactionId));
-        }
-    }
-
-    private static class ErrorResponse {
-        public final int status;
-        public final String code;
-        public final String message;
-        public final String transactionId;
-
-        public ErrorResponse(int status, String code, String message, String transactionId) {
-            this.status = status;
-            this.code = code;
-            this.message = message;
-            this.transactionId = transactionId;
+            return ResponseEntity.ok(summaries);
+        } catch (DateTimeParseException | IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(null);
         }
     }
 }
