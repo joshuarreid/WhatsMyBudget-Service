@@ -69,6 +69,11 @@ Config env vars:
 
 ## Common Conventions
 
+### Contract and Decision References
+
+- ADR: `docs/decisions/ADR-001-v2-api-contract-parity.md`
+- Test coverage guide: `docs/v2-controller-contract-tests.md`
+
 ### Headers
 
 - **Request (optional):** `X-Transaction-ID: <string>`

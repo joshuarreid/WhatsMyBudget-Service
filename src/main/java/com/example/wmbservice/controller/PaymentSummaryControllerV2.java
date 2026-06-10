@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -27,21 +28,33 @@ public class PaymentSummaryControllerV2 {
         this.paymentSummaryService = paymentSummaryService;
     }
 
+    private static String ensureTransactionId(String transactionId) {
+        if (transactionId == null || transactionId.isBlank() || "N/A".equalsIgnoreCase(transactionId)) {
+            return UUID.randomUUID().toString().replace("-", "");
+        }
+        return transactionId;
+    }
+
     @GetMapping
     public ResponseEntity<List<PaymentSummaryResponse>> getPaymentSummary(
             @RequestParam(value = "accounts") String accounts,
             @RequestParam(value = "statementPeriod") String statementPeriod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
         logger.info("[v2] getPaymentSummary entered. transactionId={}, statementPeriod={}, accounts={}", transactionId, statementPeriod, accounts);
         if (statementPeriod == null || statementPeriod.isBlank()) {
-            return ResponseEntity.badRequest().body(null);
+            return ResponseEntity.badRequest()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(null);
         }
         List<String> accountList = Arrays.stream(accounts.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
         List<PaymentSummaryResponse> summaries = paymentSummaryService.getPaymentSummary(accountList, statementPeriod, transactionId);
-        return ResponseEntity.ok(summaries);
+        return ResponseEntity.ok()
+                .header("X-Transaction-ID", transactionId)
+                .body(summaries);
     }
 
     @GetMapping(params = {"accounts", "startDate", "endDate"})
@@ -50,6 +63,7 @@ public class PaymentSummaryControllerV2 {
             @RequestParam(value = "startDate") String startDate,
             @RequestParam(value = "endDate") String endDate,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
+        transactionId = ensureTransactionId(transactionId);
         logger.info("[v2] getPaymentSummaryByDateRange entered. transactionId={}, startDate={}, endDate={}, accounts={}",
                 transactionId, startDate, endDate, accounts);
 
@@ -63,9 +77,13 @@ public class PaymentSummaryControllerV2 {
                     .collect(Collectors.toList());
 
             List<PaymentSummaryResponse> summaries = paymentSummaryService.getPaymentSummaryByDateRange(accountList, s, e, transactionId);
-            return ResponseEntity.ok(summaries);
+            return ResponseEntity.ok()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(summaries);
         } catch (DateTimeParseException | IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(null);
+            return ResponseEntity.badRequest()
+                    .header("X-Transaction-ID", transactionId)
+                    .body(null);
         }
     }
 }
