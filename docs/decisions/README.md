@@ -13,6 +13,7 @@ This folder stores architectural decisions for the `wmbservice` codebase.
 | ADR | Title | Status | Date | Notes |
 |---|---|---|---|---|
 | `ADR-001` | v2 API contract parity for controllers | Accepted | 2026-06-10 | Keep v2 behavior aligned with v1, strengthen contract tests |
+| `ADR-002` | v1 API decommission modes | Accepted | 2026-06-10 | Stage v1 retirement through active, deprecated, and disabled modes |
 
 ## Naming Convention
 
@@ -44,4 +45,3 @@ Pros/cons and why they were rejected.
 ## Consequences
 Trade-offs, follow-up work, operational impact.
 ```
-

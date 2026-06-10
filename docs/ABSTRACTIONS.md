@@ -98,7 +98,9 @@ API versioning is represented explicitly by parallel controller classes:
 
 Guideline:
 - Preserve behavior parity unless a deliberate breaking change is documented and versioned.
-- See `docs/decisions/ADR-001-v2-api-contract-parity.md`.
+- Preserve v1 retirement as a staged transition rather than deleting code immediately.
+- Use `api.v1.mode` to move legacy routes through `active` → `deprecated` → `disabled`.
+- See `docs/decisions/ADR-001-v2-api-contract-parity.md` and `docs/decisions/ADR-002-v1-api-decommission-modes.md`.
 
 ## 7) Scheduling Abstractions
 
