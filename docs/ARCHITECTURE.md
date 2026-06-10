@@ -78,7 +78,7 @@ Configured in `config/SecurityConfig.java` and `config/JwtConfig.java`:
 
 - `/auth/login` and `/auth/hash` are public.
 - `/api/v2/**` requires JWT authentication.
-- `/api/**` remains open for legacy clients.
+- `/api/**` is available only when `api.v1.mode` is `active` or `deprecated`; in `disabled` mode the filter returns `410 Gone` centrally.
 - Stateless session policy.
 - CORS managed via `WebConfig` and security CORS integration.
 - JWT signing keys are generated in-memory at startup (tokens invalidate on restart).
@@ -89,6 +89,16 @@ Configured in `config/SecurityConfig.java` and `config/JwtConfig.java`:
 - v2 parity with v1 behavior is documented in:
   - `docs/decisions/ADR-001-v2-api-contract-parity.md`
   - `docs/v2-controller-contract-tests.md`
+- v1 decommissioning is controlled by `api.v1.mode`:
+  - `active`: legacy `/api/**` remains fully enabled (default)
+  - `deprecated`: legacy endpoints remain enabled and are marked for retirement
+  - `disabled`: legacy endpoints are blocked while controller code remains in the codebase
+- In `deprecated` mode, v1 responses include deprecation headers:
+  - `Deprecation: true`
+  - `Sunset: Wed, 31 Dec 2026 23:59:59 GMT`
+  - `Link: </api/v2>; rel="successor-version"`
+- In `deprecated` mode, v1 request volume is tracked via metric `api.v1.deprecation.hits`.
+- In `disabled` mode, legacy `/api/**` requests return `410 Gone` centrally and do not reach controllers.
 
 ## Non-Functional Considerations
 
@@ -101,4 +111,3 @@ Configured in `config/SecurityConfig.java` and `config/JwtConfig.java`:
 - In-memory JWT keypair is not suitable for production continuity.
 - Contract drift risk exists if v1/v2 behavior diverges without parity tests.
 - Controller-level error responses are not fully unified across all endpoints.
-

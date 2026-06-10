@@ -20,3 +20,9 @@ wmb:
     lock-seconds: ${WMB_LOGIN_LOCK_SECONDS:300}
     # How long to keep per-IP attempt state in memory (cleanup runs on each login)
     attempt-cache-ttl-seconds: ${WMB_ATTEMPT_CACHE_TTL_SECONDS:3600}
+
+api:
+  v1:
+    # Runtime decommission switch for legacy /api/** endpoints.
+    # Allowed values: active, deprecated, disabled
+    mode: ${WMB_API_V1_MODE:active}
