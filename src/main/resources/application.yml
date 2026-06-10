@@ -25,4 +25,4 @@ api:
   v1:
     # Runtime decommission switch for legacy /api/** endpoints.
     # Allowed values: active, deprecated, disabled
-    mode: ${WMB_API_V1_MODE:active}
+    mode: ${WMB_API_V1_MODE:disabled}

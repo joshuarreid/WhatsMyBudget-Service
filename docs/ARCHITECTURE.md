@@ -90,9 +90,9 @@ Configured in `config/SecurityConfig.java` and `config/JwtConfig.java`:
   - `docs/decisions/ADR-001-v2-api-contract-parity.md`
   - `docs/v2-controller-contract-tests.md`
 - v1 decommissioning is controlled by `api.v1.mode`:
-  - `active`: legacy `/api/**` remains fully enabled (default)
+  - `active`: legacy `/api/**` remains fully enabled
   - `deprecated`: legacy endpoints remain enabled and are marked for retirement
-  - `disabled`: legacy endpoints are blocked while controller code remains in the codebase
+  - `disabled`: legacy endpoints are blocked while controller code remains in the codebase (default)
 - In `deprecated` mode, v1 responses include deprecation headers:
   - `Deprecation: true`
   - `Sunset: Wed, 31 Dec 2026 23:59:59 GMT`
