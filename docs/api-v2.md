@@ -308,3 +308,36 @@ Response:
 ```json
 { "deletedCount": 123 }
 ```
+
+---
+
+### Accounts (read-only)
+
+Base path: `/api/v2/accounts`
+
+#### List all accounts
+
+**GET** `/api/v2/accounts`
+
+Returns all known accounts from the `accounts` table. Use this to populate account dropdowns in the frontend without hardcoding values.
+
+Auth:
+- `Authorization: Bearer <jwt>`
+
+Response:
+- `200 OK` → array of `{ "id": number, "accountName": string }`
+
+Example:
+```json
+[
+  { "id": 1, "accountName": "josh" },
+  { "id": 2, "accountName": "anna" },
+  { "id": 3, "accountName": "joint" }
+]
+```
+
+**Notes:**
+- All write endpoints (`POST`/`PUT` transactions, bulk import, statement upload) validate the `account` field against this list and return `400 UNKNOWN_ACCOUNT` if the name is not found.
+- Account name matching is **case-insensitive** (e.g. `JOINT`, `Joint`, `joint` all resolve correctly).
+- New account names cannot be created via the API — they must be added directly to the `accounts` table (admin operation).
+

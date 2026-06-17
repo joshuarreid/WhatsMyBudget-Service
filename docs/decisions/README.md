@@ -14,6 +14,7 @@ This folder stores architectural decisions for the `wmbservice` codebase.
 |---|---|---|---|---|
 | `ADR-001` | v2 API contract parity for controllers | Accepted | 2026-06-10 | Keep v2 behavior aligned with v1, strengthen contract tests |
 | `ADR-002` | v1 API decommission modes | Accepted | 2026-06-10 | Stage v1 retirement through active, deprecated, and disabled modes |
+| `ADR-003` | `accounts` table and account name validation on writes | Accepted | 2026-06-17 | Canonical account registry, dual-write `account_id`, fail-fast 400 on unknown names |
 
 ## Naming Convention
 

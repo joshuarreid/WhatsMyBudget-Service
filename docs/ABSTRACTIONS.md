@@ -34,6 +34,8 @@ Representative classes:
 - `AnalyticsService`
 - `StatementPeriodSummaryService`
 - `PaymentSummaryService`
+- `AccountService` — resolves account names to canonical `Account` entities; all write paths must call `resolveByName()` before persisting. Throws `UnknownAccountException` (→ `400`) for unknown names.
+- `BankStatementService` — bank-specific CSV parsing; validates account before entering the parse loop.
 
 ### Domain Exceptions
 Service-local exceptions communicate business failures without leaking persistence details.
@@ -42,6 +44,7 @@ Examples:
 - `DuplicateTransactionException`
 - `ProjectedTransactionNotFoundException`
 - `DuplicateStatementPeriodException`
+- `AccountService.UnknownAccountException` — thrown when an account name is not found in the `accounts` table; controllers map this to `400 UNKNOWN_ACCOUNT`.
 
 ## 3) Persistence Abstractions
 
@@ -57,6 +60,7 @@ Representative classes:
 - `BudgetTransactionRepository`
 - `ProjectedTransactionRepository`
 - `StatementPeriodRepository`
+- `AccountRepository` — provides `findByAccountNameIgnoreCase()` for account name validation on writes.
 
 ## 4) Data Shape Abstractions
 
@@ -64,8 +68,9 @@ Representative classes:
 Used for persistence and many API payloads.
 
 Examples:
-- `BudgetTransaction`
-- `ProjectedTransaction`
+- `BudgetTransaction` — `account` (write-normalized to lowercase); `accountId` (FK, `@JsonIgnore`, populated on writes)
+- `ProjectedTransaction` — same dual-write pattern as `BudgetTransaction`
+- `Account` — canonical account entity; `accountName` is the normalized lowercase registry value
 - `StatementPeriod`
 - `PaymentSummaryResponse`
 

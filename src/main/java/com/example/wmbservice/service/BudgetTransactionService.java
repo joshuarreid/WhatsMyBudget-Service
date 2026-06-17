@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import com.example.wmbservice.service.AccountService.UnknownAccountException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,6 +38,7 @@ public class BudgetTransactionService {
     private final StatementPeriodRepository statementPeriodRepository;
     private final BankStatementService bankStatementService;
     private final CriticalityService criticalityService;
+    private final AccountService accountService;
 
     // Regex enforces FULL MONTH NAME (uppercase or mixed-case normalized) followed by 4-digit year e.g. OCTOBER2025
     private static final Pattern PERIOD_NAME_PATTERN = Pattern.compile(
@@ -48,12 +50,14 @@ public class BudgetTransactionService {
                                     BudgetTransactionCsvImporter csvImporter,
                                     StatementPeriodRepository statementPeriodRepository,
                                     BankStatementService bankStatementService,
-                                    CriticalityService criticalityService) {
+                                    CriticalityService criticalityService,
+                                    AccountService accountService) {
         this.repository = repository;
         this.csvImporter = csvImporter;
         this.statementPeriodRepository = statementPeriodRepository;
         this.bankStatementService = bankStatementService;
         this.criticalityService = criticalityService;
+        this.accountService = accountService;
         logger.info("BudgetTransactionService initialized with BankStatementService and repositories.");
     }
 
@@ -94,6 +98,12 @@ public class BudgetTransactionService {
         String normalizedPeriod = normalizeAndEnsureStatementPeriod(rawPeriod, transactionId);
         transaction.setStatementPeriod(normalizedPeriod);
         criticalityService.normalize(transaction);
+
+        // Resolve and validate account name; normalize to lowercase
+        Account account = accountService.resolveByName(transaction.getAccount());
+        transaction.setAccount(account.getAccountName().toLowerCase());
+        transaction.setAccountId(account.getId());
+        logger.debug("Resolved account '{}' -> id={}. transactionId={}", account.getAccountName(), account.getId(), transactionId);
 
         // If transactionDate is null (hand-add), set to current date
         if (transaction.getTransactionDate() == null) {
@@ -334,6 +344,12 @@ public class BudgetTransactionService {
         }
         criticalityService.normalize(updated);
 
+        // Resolve and validate account name; normalize to lowercase
+        Account account = accountService.resolveByName(updated.getAccount());
+        updated.setAccount(account.getAccountName().toLowerCase());
+        updated.setAccountId(account.getId());
+        logger.debug("Resolved account '{}' -> id={} on update. transactionId={}", account.getAccountName(), account.getId(), transactionId);
+
         // Copy updatable fields to existing transaction
         existing.setName(updated.getName());
         existing.setAmount(updated.getAmount());
@@ -342,6 +358,7 @@ public class BudgetTransactionService {
         existing.setCriticalityId(updated.getCriticalityId());
         existing.setTransactionDate(updated.getTransactionDate());
         existing.setAccount(updated.getAccount());
+        existing.setAccountId(updated.getAccountId());
         existing.setStatus(updated.getStatus());
         existing.setPaymentMethod(updated.getPaymentMethod().toLowerCase());
         existing.setCreatedTime(updated.getCreatedTime());
@@ -464,9 +481,22 @@ public class BudgetTransactionService {
             if (transaction == null) continue;
 
             transaction.setStatementPeriod(normalizedPeriod);
-            transaction.setRowHash(generateRowHash(transaction));
-            try {
-                Optional<BudgetTransaction> existing = repository.findByRowHashAndStatementPeriod(
+                transaction.setRowHash(generateRowHash(transaction));
+                try {
+                    // Validate and resolve account per row (unknown account → per-row error, skip row)
+                    try {
+                        Account resolvedAccount = accountService.resolveByName(transaction.getAccount());
+                        transaction.setAccount(resolvedAccount.getAccountName().toLowerCase());
+                        transaction.setAccountId(resolvedAccount.getId());
+                    } catch (UnknownAccountException e) {
+                        logger.warn("Unknown account '{}' on bulk import row {}. transactionId={}", transaction.getAccount(), i + 2, transactionId);
+                        Map<String, Object> errorDetail = new HashMap<>();
+                        errorDetail.put("row", i + 2);
+                        errorDetail.put("message", e.getMessage());
+                        errors.add(errorDetail);
+                        continue;
+                    }
+                    Optional<BudgetTransaction> existing = repository.findByRowHashAndStatementPeriod(
                         transaction.getRowHash(), normalizedPeriod);
                 if (existing.isPresent()) {
                     duplicateCount++;

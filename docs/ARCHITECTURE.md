@@ -28,6 +28,7 @@ Responsibilities:
 Examples:
 - `BudgetTransactionController` and `BudgetTransactionControllerV2`
 - `AnalyticsController` and `AnalyticsControllerV2`
+- `AccountControllerV2` — exposes account registry for frontend dropdowns
 
 ### 2) Services (`service/`)
 Responsibilities:
@@ -39,6 +40,8 @@ Examples:
 - `BudgetTransactionService`, `ProjectedTransactionService`
 - `AnalyticsService`, `StatementPeriodSummaryService`
 - `PaymentSummaryService`
+- `AccountService` — canonical account name validation and ID resolution for all write paths
+- `BankStatementService` — bank-specific CSV statement import
 
 ### 3) Repositories (`repository/`)
 Responsibilities:
@@ -49,6 +52,7 @@ Examples:
 - `BudgetTransactionRepository`
 - `StatementPeriodRepository`
 - `ProjectedTransactionRepository`
+- `AccountRepository` — case-insensitive account name lookups
 
 ### 4) Models and DTOs (`model/`, `dto/`)
 - `model/` contains entities and response wrappers used across controller/service boundaries
@@ -58,14 +62,16 @@ Examples:
 
 ## Flow A: Transaction CRUD
 1. Controller accepts request and validates boundary inputs.
-2. Service enforces domain rules (e.g., date/period normalization, dedupe checks).
-3. Repository persists/queries data.
-4. Controller maps results/exceptions to response status/body.
+2. Service calls `AccountService.resolveByName()` — fails fast with `400 UNKNOWN_ACCOUNT` if the account name is not in the `accounts` table.
+3. Service enforces domain rules (date/period normalization, dedupe checks); sets `account_id` and normalizes `account` to lowercase.
+4. Repository persists/queries data.
+5. Controller maps results/exceptions to response status/body.
 
 ## Flow B: Analytics Query
 1. Controller validates period/range inputs.
 2. `AnalyticsService` executes aggregate or transformed queries.
 3. DTO responses are returned with optional account/joint adjustments.
+4. **Account filter strings still operate on the `account` VARCHAR column** — analytics reads are not yet migrated to `account_id`.
 
 ## Flow C: Statement Period Summaries
 1. `StatementPeriodSummaryService` computes or reads summary records.
@@ -106,8 +112,27 @@ Configured in `config/SecurityConfig.java` and `config/JwtConfig.java`:
 - **Test profile isolation:** H2 test config in `src/test/resources/application-test.properties`.
 - **Incremental migration:** v2 introduces auth while preserving expected v1 behavior where feasible.
 
+## Account Model (Dual-Write Transition)
+
+The `accounts` table is the canonical registry of valid account names.
+
+**Current state (dual-write phase):**
+- `budget_transactions.account` (VARCHAR) — used by all reads, filters, analytics, and joint-split logic.
+- `budget_transactions.account_id` (FK) — written on every new/updated row; nullable for legacy rows.
+- Same dual-write applies to `projected_transactions`.
+
+**Invariants:**
+- All write paths go through `AccountService.resolveByName()` before persisting.
+- Account names are normalized to lowercase-trim on write.
+- Unknown account names → `400 UNKNOWN_ACCOUNT`.
+- `account_id` is `@JsonIgnore` — not exposed in any API response.
+- Analytics and read paths continue to filter by `account` VARCHAR until a future migration.
+
+**Migration checkpoint:** Once `SELECT COUNT(*) FROM budget_transactions WHERE account_id IS NULL` returns 0, the FK can be made `NOT NULL` and reads can be migrated (see ADR-003).
+
 ## Key Risks and Follow-Ups
 
 - In-memory JWT keypair is not suitable for production continuity.
 - Contract drift risk exists if v1/v2 behavior diverges without parity tests.
 - Controller-level error responses are not fully unified across all endpoints.
+- `account_id` is nullable on legacy rows written before ADR-003 — track via `SELECT COUNT(*) FROM budget_transactions WHERE account_id IS NULL`.

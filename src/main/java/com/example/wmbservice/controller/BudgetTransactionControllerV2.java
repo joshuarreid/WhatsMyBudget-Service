@@ -1,6 +1,7 @@
 package com.example.wmbservice.controller;
 
 import com.example.wmbservice.model.*;
+import com.example.wmbservice.service.AccountService;
 import com.example.wmbservice.service.BudgetTransactionService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -199,6 +200,11 @@ public class BudgetTransactionControllerV2 {
             return ResponseEntity.status(HttpStatus.CREATED)
                     .header("X-Transaction-ID", transactionId)
                     .body(created);
+        } catch (AccountService.UnknownAccountException e) {
+            logger.warn("[v2] Unknown account on create. transactionId={}, error={}", transactionId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "UNKNOWN_ACCOUNT", e.getMessage(), transactionId));
         } catch (BudgetTransactionService.DuplicateTransactionException e) {
             logger.warn("[v2] Duplicate transaction detected. transactionId={}, error={}", transactionId, e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -232,6 +238,11 @@ public class BudgetTransactionControllerV2 {
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
                     .body(updated);
+        } catch (AccountService.UnknownAccountException e) {
+            logger.warn("[v2] Unknown account on update. transactionId={}, id={}, error={}", transactionId, id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "UNKNOWN_ACCOUNT", e.getMessage(), transactionId));
         } catch (BudgetTransactionService.DuplicateTransactionException e) {
             logger.warn("[v2] Duplicate transaction on update. transactionId={}, error={}", transactionId, e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT)

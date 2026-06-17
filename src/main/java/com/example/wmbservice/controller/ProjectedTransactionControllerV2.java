@@ -3,6 +3,7 @@ package com.example.wmbservice.controller;
 import com.example.wmbservice.model.AccountProjectedTransactionList;
 import com.example.wmbservice.model.ProjectedTransaction;
 import com.example.wmbservice.model.ProjectedTransactionList;
+import com.example.wmbservice.service.AccountService;
 import com.example.wmbservice.service.ProjectedTransactionService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -40,6 +41,10 @@ public class ProjectedTransactionControllerV2 {
             return ResponseEntity.status(HttpStatus.CREATED)
                     .header("X-Transaction-ID", transactionId)
                     .body(created);
+        } catch (AccountService.UnknownAccountException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "UNKNOWN_ACCOUNT", e.getMessage(), transactionId));
         } catch (ProjectedTransactionService.DuplicateProjectedTransactionException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .header("X-Transaction-ID", transactionId)
@@ -153,6 +158,10 @@ public class ProjectedTransactionControllerV2 {
             return ResponseEntity.ok()
                     .header("X-Transaction-ID", transactionId)
                     .body(updated);
+        } catch (AccountService.UnknownAccountException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("X-Transaction-ID", transactionId)
+                    .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "UNKNOWN_ACCOUNT", e.getMessage(), transactionId));
         } catch (ProjectedTransactionService.ProjectedTransactionNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .header("X-Transaction-ID", transactionId)

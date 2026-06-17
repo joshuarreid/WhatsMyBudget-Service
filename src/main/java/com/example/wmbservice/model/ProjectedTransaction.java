@@ -1,6 +1,7 @@
 package com.example.wmbservice.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
@@ -69,6 +70,14 @@ public class ProjectedTransaction {
     @NotBlank
     @Column(nullable = false)
     private String account;
+
+    /**
+     * FK to accounts.id — populated on every write after account validation.
+     * Nullable during dual-write transition; not serialized to API responses.
+     */
+    @JsonIgnore
+    @Column(name = "account_id")
+    private Long accountId;
 
     private String status;
 

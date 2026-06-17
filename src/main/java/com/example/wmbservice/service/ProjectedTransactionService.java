@@ -5,6 +5,7 @@ import com.example.wmbservice.model.ProjectedTransactionList;
 import com.example.wmbservice.model.StatementPeriod;
 import com.example.wmbservice.repository.ProjectedTransactionRepository;
 import com.example.wmbservice.repository.StatementPeriodRepository;
+import com.example.wmbservice.service.AccountService.UnknownAccountException;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ public class ProjectedTransactionService {
     private final ProjectedTransactionRepository repository;
     private final StatementPeriodRepository statementPeriodRepository;
     private final CriticalityService criticalityService;
+    private final AccountService accountService;
 
     // Regex enforces FULL MONTH NAME followed by 4-digit year, e.g. OCTOBER2025
     private static final Pattern PERIOD_NAME_PATTERN = Pattern.compile(
@@ -44,10 +46,12 @@ public class ProjectedTransactionService {
 
     public ProjectedTransactionService(ProjectedTransactionRepository repository,
                                        StatementPeriodRepository statementPeriodRepository,
-                                       CriticalityService criticalityService) {
+                                       CriticalityService criticalityService,
+                                       AccountService accountService) {
         this.repository = repository;
         this.statementPeriodRepository = statementPeriodRepository;
         this.criticalityService = criticalityService;
+        this.accountService = accountService;
     }
 
     /**
@@ -87,6 +91,12 @@ public class ProjectedTransactionService {
         String normalizedPeriod = normalizeAndEnsureStatementPeriod(rawPeriod, transactionId);
         transaction.setStatementPeriod(normalizedPeriod);
         criticalityService.normalize(transaction);
+
+        // Resolve and validate account name; normalize to lowercase
+        com.example.wmbservice.model.Account account = accountService.resolveByName(transaction.getAccount());
+        transaction.setAccount(account.getAccountName().toLowerCase());
+        transaction.setAccountId(account.getId());
+        logger.debug("Resolved account '{}' -> id={}. transactionId={}", account.getAccountName(), account.getId(), transactionId);
 
         if (transaction.getTransactionDate() == null) {
             LocalDate now = LocalDate.now();
@@ -242,6 +252,12 @@ public class ProjectedTransactionService {
         }
         criticalityService.normalize(updated);
 
+        // Resolve and validate account name; normalize to lowercase
+        com.example.wmbservice.model.Account account = accountService.resolveByName(updated.getAccount());
+        updated.setAccount(account.getAccountName().toLowerCase());
+        updated.setAccountId(account.getId());
+        logger.debug("Resolved account '{}' -> id={} on update. transactionId={}", account.getAccountName(), account.getId(), transactionId);
+
         // Copy updatable fields
         existing.setName(updated.getName());
         existing.setAmount(updated.getAmount());
@@ -250,6 +266,7 @@ public class ProjectedTransactionService {
         existing.setCriticalityId(updated.getCriticalityId());
         existing.setTransactionDate(updated.getTransactionDate());
         existing.setAccount(updated.getAccount());
+        existing.setAccountId(updated.getAccountId());
         existing.setStatus(updated.getStatus());
         existing.setPaymentMethod(updated.getPaymentMethod());
         existing.setCreatedTime(updated.getCreatedTime());

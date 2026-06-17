@@ -36,11 +36,58 @@ Covers:
 - `ProjectedTransactionControllerV2` invalid date-range request shape (`400`, error contract),
 - `X-Transaction-ID` passthrough on error responses.
 
+### `AccountControllerV2ContractTest`
+Path: `src/test/java/com/example/wmbservice/AccountControllerV2ContractTest.java`
+
+Covers:
+- `GET /api/v2/accounts` returns all accounts with `id` and `accountName` fields,
+- empty accounts table returns empty JSON array,
+- `X-Transaction-ID` echo behavior.
+
+### `AccountServiceTest`
+Path: `src/test/java/com/example/wmbservice/service/AccountServiceTest.java`
+
+Covers:
+- `resolveByName()` with known name returns correct `Account`,
+- `resolveByName()` is case-insensitive (input is lowercased before lookup),
+- `resolveByName()` trims whitespace before lookup,
+- `resolveByName()` with unknown name throws `UnknownAccountException`,
+- `resolveByName()` with `null` input throws `IllegalArgumentException`,
+- `resolveByName()` with blank input throws `IllegalArgumentException`.
+
+### `BudgetTransactionServiceAccountResolutionTest`
+Path: `src/test/java/com/example/wmbservice/service/BudgetTransactionServiceAccountResolutionTest.java`
+
+Covers:
+- `createTransaction` with known account sets `accountId` and normalizes `account` to lowercase,
+- `createTransaction` with unknown account throws `UnknownAccountException` without calling `repository.save()`,
+- `updateTransaction` with unknown account throws `UnknownAccountException` without calling `repository.save()`.
+
+### `ProjectedTransactionServiceAccountResolutionTest`
+Path: `src/test/java/com/example/wmbservice/service/ProjectedTransactionServiceAccountResolutionTest.java`
+
+Covers:
+- `createTransaction` with known account sets `accountId` and normalizes `account` to lowercase,
+- `createTransaction` with unknown account throws `UnknownAccountException` without calling `repository.save()`,
+- `updateTransaction` with unknown account throws `UnknownAccountException` without calling `repository.save()`.
+
+### `BankStatementServiceAccountResolutionTest`
+Path: `src/test/java/com/example/wmbservice/service/BankStatementServiceAccountResolutionTest.java`
+
+Covers:
+- `importCreditCardStatement` with unknown account returns `BulkImportResult` with error immediately (zero inserts, no CSV rows processed),
+- `importCreditCardStatement` with known account proceeds past account validation into CSV parsing.
+
 ## How to Run
 
 ```bash
 cd "/Users/joshuareid/Documents/Github/wmbservice"
-./mvnw -Dtest=PaymentSummaryControllerV2ContractTest,AnalyticsControllerV2ValidationTest,TransactionControllersV2ValidationTest test
+
+# All contract + account service tests
+./mvnw -Dtest="PaymentSummaryControllerV2ContractTest,AnalyticsControllerV2ValidationTest,TransactionControllersV2ValidationTest,AccountControllerV2ContractTest,AccountServiceTest,BudgetTransactionServiceAccountResolutionTest,ProjectedTransactionServiceAccountResolutionTest,BankStatementServiceAccountResolutionTest" test
+
+# Full suite
+./mvnw test
 ```
 
 ## Notes
@@ -53,4 +100,6 @@ cd "/Users/joshuareid/Documents/Github/wmbservice"
 - Add direct v1-v2 parity tests for summary endpoints (`/analytics/summaries/*`).
 - Add account date-range validation tests for `/api/v2/transactions/account` and `/api/v2/projected-transactions/account` for partial-range rejection when behavior is finalized.
 - Expand `LocalCacheControllerV2` and `StatementPeriodControllerV2` error contract tests.
+- Add integration test for `account_id` dual-write: verify `account_id` is non-null after a successful create via the v2 controller.
+- Add integration test for `400 UNKNOWN_ACCOUNT` end-to-end through the full Spring context.
 

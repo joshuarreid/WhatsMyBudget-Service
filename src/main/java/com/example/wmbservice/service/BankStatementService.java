@@ -5,6 +5,7 @@ import com.example.wmbservice.model.BudgetTransaction;
 import com.example.wmbservice.model.BulkImportResult;
 import com.example.wmbservice.repository.BudgetTransactionRepository;
 import com.example.wmbservice.util.RowHasher;
+import com.example.wmbservice.service.AccountService.UnknownAccountException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,14 +28,17 @@ public class BankStatementService {
     private static final Logger logger = LoggerFactory.getLogger(BankStatementService.class);
 
     private final BudgetTransactionRepository repository;
+    private final AccountService accountService;
 
     /**
      * Constructs a BankStatementService with the required repository dependency.
      *
-     * @param repository BudgetTransactionRepository used for persistence.
+     * @param repository     BudgetTransactionRepository used for persistence.
+     * @param accountService AccountService used to validate and resolve account names.
      */
-    public BankStatementService(BudgetTransactionRepository repository) {
+    public BankStatementService(BudgetTransactionRepository repository, AccountService accountService) {
         this.repository = repository;
+        this.accountService = accountService;
     }
 
     /**
@@ -73,11 +77,24 @@ public class BankStatementService {
             return new BulkImportResult(0, 0, List.of(error));
         }
 
+        // Validate account exists before processing any CSV rows (fail-fast)
+        com.example.wmbservice.model.Account resolvedAccount;
+        try {
+            resolvedAccount = accountService.resolveByName(account);
+        } catch (AccountService.UnknownAccountException e) {
+            logger.warn("importCreditCardStatement: unknown account '{}'. transactionId={}, bank={}", account, transactionId, bank);
+            Map<String, Object> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return new BulkImportResult(0, 0, List.of(error));
+        }
+        String normalizedAccount = resolvedAccount.getAccountName().toLowerCase();
+        Long accountId = resolvedAccount.getId();
+
         switch (bank) {
             case CHASE:
-                return importChaseCreditCardStatement(file, statementPeriod, account, paymentMethod, transactionId);
+                return importChaseCreditCardStatement(file, statementPeriod, normalizedAccount, accountId, paymentMethod, transactionId);
             case AMEX:
-                return importAmexCreditCardStatement(file, statementPeriod, account, paymentMethod, transactionId);
+                return importAmexCreditCardStatement(file, statementPeriod, normalizedAccount, accountId, paymentMethod, transactionId);
             default:
                 logger.warn("Unsupported bank for statement import. transactionId={}, bank={}, account={}, paymentMethod={}", transactionId, bank, account, paymentMethod);
                 Map<String, Object> error = new HashMap<>();
@@ -104,6 +121,7 @@ public class BankStatementService {
             MultipartFile file,
             String statementPeriod,
             String account,
+            Long accountId,
             String paymentMethod,
             String transactionId
     ) {
@@ -211,6 +229,7 @@ public class BankStatementService {
                     tx.setCategory("Uncategorized");
                     tx.setCriticality("");
                     tx.setAccount(account);
+                    tx.setAccountId(accountId);
                     tx.setPaymentMethod(paymentMethod);
 
                     if (statusColPresent && statusColIdx >= 0 && statusColIdx < cols.length) {
@@ -296,6 +315,7 @@ public class BankStatementService {
             MultipartFile file,
             String statementPeriod,
             String account,
+            Long accountId,
             String paymentMethod,
             String transactionId
     ) {
@@ -410,6 +430,7 @@ public class BankStatementService {
                     tx.setCategory("Uncategorized");
                     tx.setCriticality("");
                     tx.setAccount(account);
+                    tx.setAccountId(accountId);
                     tx.setPaymentMethod(paymentMethod);
                     tx.setStatus(null);
                     tx.setCreatedTime(LocalDateTime.now());
