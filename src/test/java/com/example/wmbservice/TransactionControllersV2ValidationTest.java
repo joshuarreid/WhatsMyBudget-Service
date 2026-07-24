@@ -1,8 +1,10 @@
 package com.example.wmbservice;
 
 import com.example.wmbservice.controller.BudgetTransactionControllerV2;
+import com.example.wmbservice.controller.IncomeTransactionControllerV2;
 import com.example.wmbservice.controller.ProjectedTransactionControllerV2;
 import com.example.wmbservice.service.BudgetTransactionService;
+import com.example.wmbservice.service.IncomeTransactionService;
 import com.example.wmbservice.service.ProjectedTransactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,8 +28,12 @@ class TransactionControllersV2ValidationTest {
     @Mock
     private ProjectedTransactionService projectedTransactionService;
 
+    @Mock
+    private IncomeTransactionService incomeTransactionService;
+
     private MockMvc budgetMockMvc;
     private MockMvc projectedMockMvc;
+    private MockMvc incomeMockMvc;
 
     @BeforeEach
     void setUp() {
@@ -36,6 +42,9 @@ class TransactionControllersV2ValidationTest {
                 .build();
         projectedMockMvc = MockMvcBuilders
                 .standaloneSetup(new ProjectedTransactionControllerV2(projectedTransactionService))
+                .build();
+        incomeMockMvc = MockMvcBuilders
+                .standaloneSetup(new IncomeTransactionControllerV2(incomeTransactionService))
                 .build();
     }
 
@@ -64,5 +73,17 @@ class TransactionControllersV2ValidationTest {
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.transactionId").value("tx-projected-bad"));
     }
-}
 
+    @Test
+    void incomeTransactions_invalidDateRange_returns400Contract() throws Exception {
+        incomeMockMvc.perform(get("/api/v2/income-transactions")
+                        .param("startDate", "2026-05-01")
+                        .param("endDate", "2026-05-99")
+                        .header("X-Transaction-ID", "tx-income-bad"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Transaction-ID", "tx-income-bad"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.transactionId").value("tx-income-bad"));
+    }
+}
