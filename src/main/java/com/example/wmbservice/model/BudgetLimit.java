@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 
 /**
  * Entity representing a user's budget limits for a given statement period.
- * Maps to the 'budget_limits' table. One row per (user_name, statement_period).
+ * Maps to the 'budget_limits' table. One row per (account, statement_period).
  * Null limit columns mean "no limit set" (unconstrained).
  */
 @Getter
@@ -20,11 +20,11 @@ import java.time.LocalDateTime;
 @Table(
         name = "budget_limits",
         indexes = {
-                @Index(name = "idx_budget_limits_user_name", columnList = "user_name"),
+                @Index(name = "idx_budget_limits_account", columnList = "account"),
                 @Index(name = "idx_budget_limits_statement_period", columnList = "statement_period")
         },
         uniqueConstraints = {
-                @UniqueConstraint(name = "uniq_budget_limits_user_period", columnNames = {"user_name", "statement_period"})
+                @UniqueConstraint(name = "uniq_budget_limits_account_period", columnNames = {"account", "statement_period"})
         }
 )
 public class BudgetLimit {
@@ -35,8 +35,8 @@ public class BudgetLimit {
 
     @NotBlank
     @Size(max = 64)
-    @Column(name = "user_name", nullable = false, length = 64)
-    private String userName;
+    @Column(name = "account", nullable = false, length = 64)
+    private String account;
 
     @NotBlank
     @Size(max = 32)

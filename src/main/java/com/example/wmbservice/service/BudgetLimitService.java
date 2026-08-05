@@ -25,34 +25,34 @@ public class BudgetLimitService {
     }
 
     /**
-     * Creates or updates the budget limits for a user + statement period.
+     * Creates or updates the budget limits for an account + statement period.
      * A null limit value means "no limit set" (unconstrained) for that category.
      */
     @Transactional
-    public BudgetLimit upsert(String userName,
+    public BudgetLimit upsert(String account,
                               String statementPeriod,
                               BigDecimal essentialLimit,
                               BigDecimal nonessentialLimit,
                               BigDecimal totalLimit,
                               String transactionId) {
         String normalizedPeriod = normalizePeriod(statementPeriod);
-        String normalizedUser = normalizeUserName(userName);
+        String normalizedAccount = normalizeAccount(account);
 
         validateLimitAmount("essentialLimit", essentialLimit);
         validateLimitAmount("nonessentialLimit", nonessentialLimit);
         validateLimitAmount("totalLimit", totalLimit);
 
-        logger.info("[budget.limits] -> upsert txId={} user={} period={}", transactionId, normalizedUser, normalizedPeriod);
+        logger.info("[budget.limits] -> upsert txId={} account={} period={}", transactionId, normalizedAccount, normalizedPeriod);
 
         BudgetLimit entity = budgetLimitRepository
-                .findByUserNameAndStatementPeriod(normalizedUser, normalizedPeriod)
+                .findByAccountAndStatementPeriod(normalizedAccount, normalizedPeriod)
                 .orElseGet(() -> {
                     BudgetLimit newLimit = new BudgetLimit();
                     newLimit.setCreatedAt(LocalDateTime.now());
                     return newLimit;
                 });
 
-        entity.setUserName(normalizedUser);
+        entity.setAccount(normalizedAccount);
         entity.setStatementPeriod(normalizedPeriod);
         entity.setEssentialLimit(essentialLimit);
         entity.setNonessentialLimit(nonessentialLimit);
@@ -60,18 +60,19 @@ public class BudgetLimitService {
         entity.setUpdatedAt(LocalDateTime.now());
 
         BudgetLimit saved = budgetLimitRepository.save(entity);
-        logger.info("[budget.limits] <- upsert txId={} user={} period={} id={}", transactionId, normalizedUser, normalizedPeriod, saved.getId());
+        logger.info("[budget.limits] <- upsert txId={} account={} period={} id={}", transactionId, normalizedAccount, normalizedPeriod, saved.getId());
         return saved;
     }
 
+
     /**
-     * Returns the budget limits for a specific user and statement period.
+     * Returns the budget limits for a specific account and statement period.
      */
-    public Optional<BudgetLimit> findByUserAndPeriod(String userName, String statementPeriod) {
+    public Optional<BudgetLimit> findByAccountAndPeriod(String account, String statementPeriod) {
         String normalizedPeriod = normalizePeriod(statementPeriod);
-        String normalizedUser = normalizeUserName(userName);
-        logger.info("[budget.limits] findByUserAndPeriod user={} period={}", normalizedUser, normalizedPeriod);
-        return budgetLimitRepository.findByUserNameAndStatementPeriod(normalizedUser, normalizedPeriod);
+        String normalizedAccount = normalizeAccount(account);
+        logger.info("[budget.limits] findByAccountAndPeriod account={} period={}", normalizedAccount, normalizedPeriod);
+        return budgetLimitRepository.findByAccountAndStatementPeriod(normalizedAccount, normalizedPeriod);
     }
 
     /**
@@ -84,12 +85,12 @@ public class BudgetLimitService {
     }
 
     /**
-     * Returns all budget limits across all periods for a given user.
+     * Returns all budget limits across all periods for a given account.
      */
-    public List<BudgetLimit> findByUser(String userName) {
-        String normalizedUser = normalizeUserName(userName);
-        logger.info("[budget.limits] findByUser user={}", normalizedUser);
-        return budgetLimitRepository.findByUserName(normalizedUser);
+    public List<BudgetLimit> findByAccount(String account) {
+        String normalizedAccount = normalizeAccount(account);
+        logger.info("[budget.limits] findByAccount account={}", normalizedAccount);
+        return budgetLimitRepository.findByAccount(normalizedAccount);
     }
 
     // --- helpers ---
@@ -101,11 +102,11 @@ public class BudgetLimitService {
         return statementPeriod.trim().toUpperCase(Locale.ENGLISH);
     }
 
-    private String normalizeUserName(String userName) {
-        if (userName == null || userName.isBlank()) {
-            throw new IllegalArgumentException("userName must not be blank");
+    private String normalizeAccount(String account) {
+        if (account == null || account.isBlank()) {
+            throw new IllegalArgumentException("account must not be blank");
         }
-        return userName.trim();
+        return account.trim();
     }
 
     private void validateLimitAmount(String fieldName, BigDecimal value) {

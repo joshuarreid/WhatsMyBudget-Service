@@ -10,10 +10,10 @@ import java.util.Optional;
 @Repository
 public interface BudgetLimitRepository extends JpaRepository<BudgetLimit, Long> {
 
-    Optional<BudgetLimit> findByUserNameAndStatementPeriod(String userName, String statementPeriod);
+    Optional<BudgetLimit> findByAccountAndStatementPeriod(String account, String statementPeriod);
 
     List<BudgetLimit> findByStatementPeriod(String statementPeriod);
 
-    List<BudgetLimit> findByUserName(String userName);
+    List<BudgetLimit> findByAccount(String account);
 }
 
