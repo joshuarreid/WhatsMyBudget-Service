@@ -77,7 +77,9 @@ Config env vars:
 ### Headers
 
 - **Request (optional):** `X-Transaction-ID: <string>`
-- **Response (echoed when provided):** `X-Transaction-ID: <string>`
+- **Response:** `X-Transaction-ID: <string>`
+  - Many endpoints echo caller-provided IDs.
+  - Some endpoints may generate a safe ID when the incoming value is missing or invalid.
 
 ### Error response shape
 
@@ -307,4 +309,72 @@ Responses:
 Response:
 ```json
 { "deletedCount": 123 }
+```
+
+---
+
+### Budget Limits (account + statement period)
+
+Base path: `/api/v2/budget-limits`
+
+#### Upsert
+
+**PUT** `/api/v2/budget-limits/{account}/{statementPeriod}`
+
+Path params:
+- `account` *(required; max 64; letters/numbers/`.`/`_`/`-`)*
+- `statementPeriod` *(required; format `MMMYYYY`, e.g. `MAY2026`)*
+
+Body (`BudgetLimitRequest`):
+```json
+{
+  "essentialLimit": 300.00,
+  "nonessentialLimit": 150.00,
+  "totalLimit": 500.00
+}
+```
+
+Notes:
+- Any limit field may be omitted or `null`.
+- Limits must be `>= 0` and use at most 2 decimal places.
+- If `X-Transaction-ID` is missing, blank, `N/A`, or unsafe format, the API generates one.
+
+Responses:
+- `200 OK` → `BudgetLimitResponse`
+- `400 Bad Request` (`BAD_REQUEST`)
+- `500 Internal Server Error` (`UPSERT_ERROR`)
+
+#### Get by account and period
+
+**GET** `/api/v2/budget-limits/{account}/{statementPeriod}`
+
+Responses:
+- `200 OK` → `BudgetLimitResponse`
+- `400 Bad Request` (`BAD_REQUEST`)
+- `404 Not Found` (`NOT_FOUND`)
+- `500 Internal Server Error` (`GET_ERROR`)
+
+#### List by period
+
+**GET** `/api/v2/budget-limits?statementPeriod={statementPeriod}`
+
+Query params:
+- `statementPeriod` *(required; format `MMMYYYY`)*
+
+Responses:
+- `200 OK` → `List<BudgetLimitResponse>`
+- `400 Bad Request` (`BAD_REQUEST`)
+- `500 Internal Server Error` (`LIST_ERROR`)
+
+`BudgetLimitResponse` shape:
+```json
+{
+  "account": "josh",
+  "statementPeriod": "MAY2026",
+  "essentialLimit": 300.00,
+  "nonessentialLimit": 150.00,
+  "totalLimit": 500.00,
+  "createdAt": "2026-08-01T10:15:00",
+  "updatedAt": "2026-08-01T11:30:00"
+}
 ```
