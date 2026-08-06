@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.Locale;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -148,7 +149,9 @@ public class BudgetLimitControllerV2 {
      }
 
     private static final Pattern ACCOUNT_PATTERN = Pattern.compile("^[A-Za-z0-9._-]+$");
-    private static final Pattern PERIOD_PATTERN = Pattern.compile("^[A-Z]{3}[0-9]{4}$");
+    private static final Pattern PERIOD_PATTERN = Pattern.compile(
+            "^(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\\d{4}$"
+    );
     private static final Pattern TRANSACTION_ID_PATTERN = Pattern.compile("^[A-Za-z0-9-]{1,128}$");
     private static final int ACCOUNT_MAX_LENGTH = 64;
     private static final int PERIOD_MAX_LENGTH = 32;
@@ -172,12 +175,12 @@ public class BudgetLimitControllerV2 {
 
     private static void validateStatementPeriod(String statementPeriod) {
         validateRequiredPath(statementPeriod, "statementPeriod");
-        String normalized = statementPeriod.trim().toUpperCase();
+        String normalized = statementPeriod.trim().toUpperCase(Locale.ENGLISH);
         if (normalized.length() > PERIOD_MAX_LENGTH) {
             throw new IllegalArgumentException("statementPeriod must be <= 32 characters");
         }
         if (!PERIOD_PATTERN.matcher(normalized).matches()) {
-            throw new IllegalArgumentException("statementPeriod must match MMMYYYY format, e.g. MAY2026");
+            throw new IllegalArgumentException("statementPeriod must match FULL_MONTHYYYY format, e.g. JUNE2026");
         }
     }
 

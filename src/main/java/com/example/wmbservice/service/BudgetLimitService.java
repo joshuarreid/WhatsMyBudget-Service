@@ -12,11 +12,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Service
 public class BudgetLimitService {
 
     private static final Logger logger = LoggerFactory.getLogger(BudgetLimitService.class);
+    private static final Pattern PERIOD_PATTERN = Pattern.compile(
+            "^(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\\d{4}$"
+    );
 
     private final BudgetLimitRepository budgetLimitRepository;
 
@@ -99,7 +103,11 @@ public class BudgetLimitService {
         if (statementPeriod == null || statementPeriod.isBlank()) {
             throw new IllegalArgumentException("statementPeriod must not be blank");
         }
-        return statementPeriod.trim().toUpperCase(Locale.ENGLISH);
+        String normalized = statementPeriod.trim().toUpperCase(Locale.ENGLISH);
+        if (!PERIOD_PATTERN.matcher(normalized).matches()) {
+            throw new IllegalArgumentException("statementPeriod must match FULL_MONTHYYYY format, e.g. JUNE2026");
+        }
+        return normalized;
     }
 
     private String normalizeAccount(String account) {
@@ -115,4 +123,3 @@ public class BudgetLimitService {
         }
     }
 }
-

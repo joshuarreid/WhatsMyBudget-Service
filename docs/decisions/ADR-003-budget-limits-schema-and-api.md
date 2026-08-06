@@ -41,7 +41,7 @@ Key constraints that shaped the design:
 - **GET** `/api/v2/budget-limits/{account}/{statementPeriod}` — fetch by account + period
 - **GET** `/api/v2/budget-limits?statementPeriod={statementPeriod}` — list all limits for a period
 - `account` path parameter: max 64 chars, alphanumeric + `.`/`_`/`-` only
-- `statementPeriod` path/query parameter: `MMMYYYY` format enforced at controller
+- `statementPeriod` path/query parameter: `FULL_MONTHYYYY` format enforced at controller
 - Limit field validation: `>= 0`, at most 2 decimal places, at most 10 integer digits
 - All endpoints echo or generate `X-Transaction-ID` (follows ADR-001 pattern)
 - `PUT` uses upsert semantics via `BudgetLimitService.upsert(...)` — idempotent and safe to retry
@@ -70,7 +70,7 @@ Key constraints that shaped the design:
 - One authoritative row per `(account, statement_period)` — no duplicates possible.
 - `PUT` upsert is idempotent; callers can safely retry without creating duplicates.
 - Null limit fields mean "unconstrained"; `0` means "zero-dollar limit" — explicit semantic.
-- `statement_period` format (`MMMYYYY`) enforced at the API layer; downstream code can trust it.
+- `statement_period` format (`FULL_MONTHYYYY`) enforced at the API layer; downstream code can trust it.
 - The release script follows the service's established idempotent migration pattern (safe to
   re-run in dev/CI).
 
@@ -90,4 +90,3 @@ Key constraints that shaped the design:
 
 ## Related Decisions
 - `docs/decisions/ADR-001-v2-api-contract-parity.md` — `X-Transaction-ID` propagation pattern applied here
-

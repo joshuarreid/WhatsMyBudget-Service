@@ -47,9 +47,9 @@ class BudgetLimitControllerV2ContractTest {
     @Test
     void upsert_success_returnsContract_andEchoesTransactionId() throws Exception {
         when(budgetLimitService.upsert(anyString(), anyString(), any(), any(), any(), anyString()))
-                .thenReturn(sample("josh", "MAY2026", "100.00", "50.00", "150.00"));
+                .thenReturn(sample("josh", "JUNE2026", "100.00", "50.00", "150.00"));
 
-        mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "may2026")
+        mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "june2026")
                         .header("X-Transaction-ID", "tx-upsert")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -62,7 +62,7 @@ class BudgetLimitControllerV2ContractTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Transaction-ID", "tx-upsert"))
                 .andExpect(jsonPath("$.account").value("josh"))
-                .andExpect(jsonPath("$.statementPeriod").value("MAY2026"))
+                .andExpect(jsonPath("$.statementPeriod").value("JUNE2026"))
                 .andExpect(jsonPath("$.essentialLimit").value(100.0))
                 .andExpect(jsonPath("$.nonessentialLimit").value(50.0))
                 .andExpect(jsonPath("$.totalLimit").value(150.0));
@@ -119,14 +119,15 @@ class BudgetLimitControllerV2ContractTest {
 
     @Test
     void upsert_invalidStatementPeriodFormat_returns400ErrorContract() throws Exception {
-        mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "2026-MAY")
+        mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "JUN2026")
                         .header("X-Transaction-ID", "tx-period-format")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(header().string("X-Transaction-ID", "tx-period-format"))
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("FULL_MONTHYYYY")));
     }
 
     @Test
@@ -269,22 +270,22 @@ class BudgetLimitControllerV2ContractTest {
 
     @Test
     void getByAccountAndPeriod_found_returns200Contract() throws Exception {
-        when(budgetLimitService.findByAccountAndPeriod("josh", "MAY2026"))
-                .thenReturn(Optional.of(sample("josh", "MAY2026", "10.00", "15.00", "30.00")));
+        when(budgetLimitService.findByAccountAndPeriod("josh", "JUNE2026"))
+                .thenReturn(Optional.of(sample("josh", "JUNE2026", "10.00", "15.00", "30.00")));
 
-        mockMvc.perform(get("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "MAY2026")
+        mockMvc.perform(get("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "JUNE2026")
                         .header("X-Transaction-ID", "tx-get"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Transaction-ID", "tx-get"))
                 .andExpect(jsonPath("$.account").value("josh"))
-                .andExpect(jsonPath("$.statementPeriod").value("MAY2026"));
+                .andExpect(jsonPath("$.statementPeriod").value("JUNE2026"));
     }
 
     @Test
     void getByAccountAndPeriod_notFound_returns404Contract() throws Exception {
-        when(budgetLimitService.findByAccountAndPeriod("josh", "MAY2026")).thenReturn(Optional.empty());
+        when(budgetLimitService.findByAccountAndPeriod("josh", "JUNE2026")).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "MAY2026")
+        mockMvc.perform(get("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "JUNE2026")
                         .header("X-Transaction-ID", "tx-missing"))
                 .andExpect(status().isNotFound())
                 .andExpect(header().string("X-Transaction-ID", "tx-missing"))
@@ -295,13 +296,13 @@ class BudgetLimitControllerV2ContractTest {
 
     @Test
     void listByPeriod_success_returnsArrayContract() throws Exception {
-        when(budgetLimitService.findByPeriod("MAY2026")).thenReturn(List.of(
-                sample("josh", "MAY2026", "10.00", null, "20.00"),
-                sample("anna", "MAY2026", null, "15.00", "25.00")
+        when(budgetLimitService.findByPeriod("JUNE2026")).thenReturn(List.of(
+                sample("josh", "JUNE2026", "10.00", null, "20.00"),
+                sample("anna", "JUNE2026", null, "15.00", "25.00")
         ));
 
         mockMvc.perform(get("/api/v2/budget-limits")
-                        .param("statementPeriod", "MAY2026")
+                        .param("statementPeriod", "JUNE2026")
                         .header("X-Transaction-ID", "tx-list"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Transaction-ID", "tx-list"))
