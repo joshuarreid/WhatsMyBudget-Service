@@ -81,7 +81,7 @@ public class BudgetLimitService {
     /**
      * Returns all users' budget limits for a given statement period.
      */
-    public List<BudgetLimit> findByPeriod(String statementPeriod) {
+    public List<BudgetLimit> findByPeriod() {
         logger.info("[budget.limits] findByPeriod period=ALL");
         return budgetLimitRepository.findAll();
     }

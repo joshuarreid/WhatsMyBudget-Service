@@ -257,11 +257,10 @@ class BudgetLimitControllerV2ContractTest {
 
     @Test
     void list_serviceUnexpectedError_returns500Contract() throws Exception {
-        when(budgetLimitService.findByPeriod(anyString()))
+        when(budgetLimitService.findByPeriod())
                 .thenThrow(new RuntimeException("boom"));
 
         mockMvc.perform(get("/api/v2/budget-limits")
-                        .param("statementPeriod", "MAY2026")
                         .header("X-Transaction-ID", "tx-list-500"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(header().string("X-Transaction-ID", "tx-list-500"))
@@ -297,13 +296,12 @@ class BudgetLimitControllerV2ContractTest {
 
     @Test
     void listByPeriod_success_returnsArrayContract() throws Exception {
-        when(budgetLimitService.findByPeriod("JUNE2026")).thenReturn(List.of(
+        when(budgetLimitService.findByPeriod()).thenReturn(List.of(
                 sample("josh", "", "10.00", null, "20.00"),
                 sample("anna", "", null, "15.00", "25.00")
         ));
 
         mockMvc.perform(get("/api/v2/budget-limits")
-                        .param("statementPeriod", "JUNE2026")
                         .header("X-Transaction-ID", "tx-list"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Transaction-ID", "tx-list"))
@@ -313,7 +311,7 @@ class BudgetLimitControllerV2ContractTest {
 
     @Test
     void listByPeriod_withoutStatementPeriod_returnsAllPeriodsContract() throws Exception {
-        when(budgetLimitService.findByPeriod(null)).thenReturn(List.of(
+        when(budgetLimitService.findByPeriod()).thenReturn(List.of(
                 sample("josh", "", "10.00", null, "20.00"),
                 sample("anna", "", null, "15.00", "25.00")
         ));

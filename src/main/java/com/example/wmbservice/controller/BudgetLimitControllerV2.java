@@ -107,14 +107,13 @@ public class BudgetLimitControllerV2 {
 
     @GetMapping
     public ResponseEntity<?> listBudgetLimitsByPeriod(
-            @RequestParam(value = "statementPeriod", required = false) String statementPeriod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
         transactionId = ensureTransactionId(transactionId);
-        logger.info("[v2] listBudgetLimitsByPeriod entered. transactionId={}, statementPeriod={}", transactionId, statementPeriod);
+        logger.info("[v2] listBudgetLimitsByPeriod entered. transactionId={}", transactionId);
 
         try {
-            List<BudgetLimitResponse> result = budgetLimitService.findByPeriod(statementPeriod)
+            List<BudgetLimitResponse> result = budgetLimitService.findByPeriod()
                     .stream()
                     .map(BudgetLimitControllerV2::toResponse)
                     .toList();

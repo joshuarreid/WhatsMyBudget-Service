@@ -130,7 +130,7 @@ class BudgetLimitServiceTest {
         BudgetLimit b = budgetLimit("Bob", "", "200.00", "50.00", "250.00");
         when(repository.findAll()).thenReturn(List.of(a, b));
 
-        List<BudgetLimit> result = service.findByPeriod("august2026");
+        List<BudgetLimit> result = service.findByPeriod();
 
         assertThat(result).hasSize(2)
                 .extracting(BudgetLimit::getAccount)
@@ -143,7 +143,7 @@ class BudgetLimitServiceTest {
         BudgetLimit b = budgetLimit("Bob", "", "200.00", "50.00", "250.00");
         when(repository.findAll()).thenReturn(List.of(a, b));
 
-        List<BudgetLimit> result = service.findByPeriod(" ");
+        List<BudgetLimit> result = service.findByPeriod();
 
         assertThat(result).hasSize(2)
                 .extracting(BudgetLimit::getAccount)

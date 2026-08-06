@@ -359,7 +359,7 @@ Responses:
 **GET** `/api/v2/budget-limits`
 
 Query params:
-- none required; the UI can call `/api/v2/budget-limits` to fetch all budget rows
+- none; the UI calls `/api/v2/budget-limits` to fetch all budget rows
 
 Responses:
 - `200 OK` → `List<BudgetLimitResponse>`
