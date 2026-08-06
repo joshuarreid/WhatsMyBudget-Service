@@ -65,4 +65,3 @@ class TransactionControllersV2ValidationTest {
                 .andExpect(jsonPath("$.transactionId").value("tx-projected-bad"));
     }
 }
-
