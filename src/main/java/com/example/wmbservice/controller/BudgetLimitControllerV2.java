@@ -43,7 +43,6 @@ public class BudgetLimitControllerV2 {
 
         try {
             validateAccount(account);
-            validateStatementPeriod(statementPeriod);
             BudgetLimitRequest payload = request == null ? new BudgetLimitRequest() : request;
             validatePayload(payload);
 
@@ -106,17 +105,15 @@ public class BudgetLimitControllerV2 {
         }
     }
 
-    @GetMapping(params = "statementPeriod")
+    @GetMapping
     public ResponseEntity<?> listBudgetLimitsByPeriod(
-            @RequestParam("statementPeriod") String statementPeriod,
+            @RequestParam(value = "statementPeriod", required = false) String statementPeriod,
             @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
 
         transactionId = ensureTransactionId(transactionId);
         logger.info("[v2] listBudgetLimitsByPeriod entered. transactionId={}, statementPeriod={}", transactionId, statementPeriod);
 
         try {
-            validateStatementPeriod(statementPeriod);
-
             List<BudgetLimitResponse> result = budgetLimitService.findByPeriod(statementPeriod)
                     .stream()
                     .map(BudgetLimitControllerV2::toResponse)

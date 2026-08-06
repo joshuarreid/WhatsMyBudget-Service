@@ -1,7 +1,6 @@
 package com.example.wmbservice.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -33,12 +32,10 @@ public class BudgetLimit {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
     @Size(max = 64)
     @Column(name = "account", nullable = false, length = 64)
     private String account;
 
-    @NotBlank
     @Size(max = 32)
     @Column(name = "statement_period", nullable = false, length = 32)
     private String statementPeriod;
@@ -58,4 +55,3 @@ public class BudgetLimit {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
-

@@ -47,7 +47,7 @@ class BudgetLimitControllerV2ContractTest {
     @Test
     void upsert_success_returnsContract_andEchoesTransactionId() throws Exception {
         when(budgetLimitService.upsert(anyString(), anyString(), any(), any(), any(), anyString()))
-                .thenReturn(sample("josh", "JUNE2026", "100.00", "50.00", "150.00"));
+                .thenReturn(sample("josh", "", "100.00", "50.00", "150.00"));
 
         mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "june2026")
                         .header("X-Transaction-ID", "tx-upsert")
@@ -62,7 +62,7 @@ class BudgetLimitControllerV2ContractTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Transaction-ID", "tx-upsert"))
                 .andExpect(jsonPath("$.account").value("josh"))
-                .andExpect(jsonPath("$.statementPeriod").value("JUNE2026"))
+                .andExpect(jsonPath("$.statementPeriod").value(""))
                 .andExpect(jsonPath("$.essentialLimit").value(100.0))
                 .andExpect(jsonPath("$.nonessentialLimit").value(50.0))
                 .andExpect(jsonPath("$.totalLimit").value(150.0));
@@ -118,22 +118,23 @@ class BudgetLimitControllerV2ContractTest {
     }
 
     @Test
-    void upsert_invalidStatementPeriodFormat_returns400ErrorContract() throws Exception {
-        mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "JUN2026")
+    void upsert_ignoresStatementPeriodOnWrite_returns200Contract() throws Exception {
+        when(budgetLimitService.upsert(anyString(), anyString(), any(), any(), any(), anyString()))
+                .thenReturn(sample("josh", "", "5.00", "6.00", "11.00"));
+
+        mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "anything")
                         .header("X-Transaction-ID", "tx-period-format")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isOk())
                 .andExpect(header().string("X-Transaction-ID", "tx-period-format"))
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("FULL_MONTHYYYY")));
+                .andExpect(jsonPath("$.statementPeriod").value(""));
     }
 
     @Test
     void upsert_invalidTransactionId_regeneratesSafeTransactionId() throws Exception {
         when(budgetLimitService.upsert(anyString(), anyString(), any(), any(), any(), anyString()))
-                .thenReturn(sample("josh", "MAY2026", "5.00", "6.00", "11.00"));
+                .thenReturn(sample("josh", "", "5.00", "6.00", "11.00"));
 
         String unsafeTxId = "invalid tx id";
         mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", "MAY2026")
@@ -197,18 +198,18 @@ class BudgetLimitControllerV2ContractTest {
     }
 
     @Test
-    void upsert_statementPeriodLength33_returns400_andSkipsService() throws Exception {
+    void upsert_statementPeriodLength33_isIgnoredOnWrite() throws Exception {
         String longPeriod = "A".repeat(33);
+        when(budgetLimitService.upsert(anyString(), anyString(), any(), any(), any(), anyString()))
+                .thenReturn(sample("josh", "", null, null, null));
 
         mockMvc.perform(put("/api/v2/budget-limits/{account}/{statementPeriod}", "josh", longPeriod)
                         .header("X-Transaction-ID", "tx-period-len")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isOk())
                 .andExpect(header().string("X-Transaction-ID", "tx-period-len"))
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
-
-        verifyNoInteractions(budgetLimitService);
+                .andExpect(jsonPath("$.statementPeriod").value(""));
     }
 
     @Test
@@ -297,8 +298,8 @@ class BudgetLimitControllerV2ContractTest {
     @Test
     void listByPeriod_success_returnsArrayContract() throws Exception {
         when(budgetLimitService.findByPeriod("JUNE2026")).thenReturn(List.of(
-                sample("josh", "JUNE2026", "10.00", null, "20.00"),
-                sample("anna", "JUNE2026", null, "15.00", "25.00")
+                sample("josh", "", "10.00", null, "20.00"),
+                sample("anna", "", null, "15.00", "25.00")
         ));
 
         mockMvc.perform(get("/api/v2/budget-limits")
@@ -311,15 +312,18 @@ class BudgetLimitControllerV2ContractTest {
     }
 
     @Test
-    void listByPeriod_blankStatementPeriod_returns400Contract() throws Exception {
+    void listByPeriod_withoutStatementPeriod_returnsAllPeriodsContract() throws Exception {
+        when(budgetLimitService.findByPeriod(null)).thenReturn(List.of(
+                sample("josh", "", "10.00", null, "20.00"),
+                sample("anna", "", null, "15.00", "25.00")
+        ));
+
         mockMvc.perform(get("/api/v2/budget-limits")
-                        .param("statementPeriod", " ")
-                        .header("X-Transaction-ID", "tx-list-bad"))
-                .andExpect(status().isBadRequest())
-                .andExpect(header().string("X-Transaction-ID", "tx-list-bad"))
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.transactionId").value("tx-list-bad"));
+                        .header("X-Transaction-ID", "tx-list-all"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Transaction-ID", "tx-list-all"))
+                .andExpect(jsonPath("$[0].account").value("josh"))
+                .andExpect(jsonPath("$[1].account").value("anna"));
     }
 
     private static BudgetLimit sample(String account,

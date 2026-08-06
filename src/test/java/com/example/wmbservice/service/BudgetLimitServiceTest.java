@@ -29,7 +29,7 @@ class BudgetLimitServiceTest {
 
     @Test
     void upsert_createNewLimit_persistsAllThreeLimits() {
-        when(repository.findByAccountAndStatementPeriod("Josh", "JANUARY2026")).thenReturn(Optional.empty());
+        when(repository.findByAccountAndStatementPeriod("Josh", "")).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(inv -> {
             BudgetLimit saved = inv.getArgument(0);
             saved.setId(1L);
@@ -41,7 +41,7 @@ class BudgetLimitServiceTest {
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getAccount()).isEqualTo("Josh");
-        assertThat(result.getStatementPeriod()).isEqualTo("JANUARY2026");
+        assertThat(result.getStatementPeriod()).isEqualTo("");
         assertThat(result.getEssentialLimit()).isEqualByComparingTo("300.00");
         assertThat(result.getNonessentialLimit()).isEqualByComparingTo("200.00");
         assertThat(result.getTotalLimit()).isEqualByComparingTo("500.00");
@@ -52,9 +52,9 @@ class BudgetLimitServiceTest {
 
     @Test
     void upsert_updateExistingLimit_overwritesValues() {
-        BudgetLimit existing = budgetLimit("Josh", "FEBRUARY2026", "400.00", "100.00", "500.00");
+        BudgetLimit existing = budgetLimit("Josh", "", "400.00", "100.00", "500.00");
         existing.setId(7L);
-        when(repository.findByAccountAndStatementPeriod("Josh", "FEBRUARY2026")).thenReturn(Optional.of(existing));
+        when(repository.findByAccountAndStatementPeriod("Josh", "")).thenReturn(Optional.of(existing));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         BudgetLimit result = service.upsert("Josh", "february2026",
@@ -69,7 +69,7 @@ class BudgetLimitServiceTest {
 
     @Test
     void upsert_partialLimits_persistsNullsForUnsetColumns() {
-        when(repository.findByAccountAndStatementPeriod("Josh", "MARCH2026")).thenReturn(Optional.empty());
+        when(repository.findByAccountAndStatementPeriod("Josh", "")).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         BudgetLimit result = service.upsert("Josh", "march2026",
@@ -98,30 +98,14 @@ class BudgetLimitServiceTest {
     }
 
     @Test
-    void upsert_blankPeriodRejected() {
-        assertThatThrownBy(() -> service.upsert("Josh", "",
-                null, null, null, "tx-6"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("statementPeriod");
-    }
-
-    @Test
-    void upsert_abbreviatedPeriodRejected() {
-        assertThatThrownBy(() -> service.upsert("Josh", "JUN2026",
-                null, null, null, "tx-6a"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("FULL_MONTHYYYY");
-    }
-
-    @Test
-    void upsert_periodNormalisedToUppercase() {
-        when(repository.findByAccountAndStatementPeriod(eq("Josh"), eq("JUNE2026"))).thenReturn(Optional.empty());
+    void upsert_ignoresStatementPeriod_andStoresBlank() {
+        when(repository.findByAccountAndStatementPeriod("Josh", "")).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         BudgetLimit result = service.upsert("Josh", "june2026", null, null, null, "tx-7");
 
-        assertThat(result.getStatementPeriod()).isEqualTo("JUNE2026");
-        verify(repository).findByAccountAndStatementPeriod("Josh", "JUNE2026");
+        assertThat(result.getStatementPeriod()).isEqualTo("");
+        verify(repository).findByAccountAndStatementPeriod("Josh", "");
     }
 
     @Test
@@ -141,12 +125,25 @@ class BudgetLimitServiceTest {
     }
 
     @Test
-    void findByPeriod_returnsAllUsersForPeriod() {
-        BudgetLimit a = budgetLimit("Alice", "AUGUST2026", "100.00", null, "100.00");
-        BudgetLimit b = budgetLimit("Bob", "AUGUST2026", "200.00", "50.00", "250.00");
-        when(repository.findByStatementPeriod("AUGUST2026")).thenReturn(List.of(a, b));
+    void findByPeriod_ignoresProvidedPeriod_returnsAllUsers() {
+        BudgetLimit a = budgetLimit("Alice", "", "100.00", null, "100.00");
+        BudgetLimit b = budgetLimit("Bob", "", "200.00", "50.00", "250.00");
+        when(repository.findAll()).thenReturn(List.of(a, b));
 
         List<BudgetLimit> result = service.findByPeriod("august2026");
+
+        assertThat(result).hasSize(2)
+                .extracting(BudgetLimit::getAccount)
+                .containsExactly("Alice", "Bob");
+    }
+
+    @Test
+    void findByPeriod_blankReturnsAllLimits() {
+        BudgetLimit a = budgetLimit("Alice", "", "100.00", null, "100.00");
+        BudgetLimit b = budgetLimit("Bob", "", "200.00", "50.00", "250.00");
+        when(repository.findAll()).thenReturn(List.of(a, b));
+
+        List<BudgetLimit> result = service.findByPeriod(" ");
 
         assertThat(result).hasSize(2)
                 .extracting(BudgetLimit::getAccount)

@@ -323,7 +323,7 @@ Base path: `/api/v2/budget-limits`
 
 Path params:
 - `account` *(required; max 64; letters/numbers/`.`/`_`/`-`)*
-- `statementPeriod` *(required; format `FULL_MONTHYYYY`, e.g. `JUNE2026`)*
+- `statementPeriod` *(ignored for writes; kept for backward compatibility)*
 
 Body (`BudgetLimitRequest`):
 ```json
@@ -356,10 +356,10 @@ Responses:
 
 #### List by period
 
-**GET** `/api/v2/budget-limits?statementPeriod={statementPeriod}`
+**GET** `/api/v2/budget-limits`
 
 Query params:
-- `statementPeriod` *(required; format `FULL_MONTHYYYY`)*
+- none required; the UI can call `/api/v2/budget-limits` to fetch all budget rows
 
 Responses:
 - `200 OK` → `List<BudgetLimitResponse>`

@@ -39,17 +39,16 @@ public class BudgetLimitService {
                               BigDecimal nonessentialLimit,
                               BigDecimal totalLimit,
                               String transactionId) {
-        String normalizedPeriod = normalizePeriod(statementPeriod);
         String normalizedAccount = normalizeAccount(account);
 
         validateLimitAmount("essentialLimit", essentialLimit);
         validateLimitAmount("nonessentialLimit", nonessentialLimit);
         validateLimitAmount("totalLimit", totalLimit);
 
-        logger.info("[budget.limits] -> upsert txId={} account={} period={}", transactionId, normalizedAccount, normalizedPeriod);
+        logger.info("[budget.limits] -> upsert txId={} account={} period=BLANK", transactionId, normalizedAccount);
 
         BudgetLimit entity = budgetLimitRepository
-                .findByAccountAndStatementPeriod(normalizedAccount, normalizedPeriod)
+                .findByAccountAndStatementPeriod(normalizedAccount, "")
                 .orElseGet(() -> {
                     BudgetLimit newLimit = new BudgetLimit();
                     newLimit.setCreatedAt(LocalDateTime.now());
@@ -57,14 +56,14 @@ public class BudgetLimitService {
                 });
 
         entity.setAccount(normalizedAccount);
-        entity.setStatementPeriod(normalizedPeriod);
+        entity.setStatementPeriod("");
         entity.setEssentialLimit(essentialLimit);
         entity.setNonessentialLimit(nonessentialLimit);
         entity.setTotalLimit(totalLimit);
         entity.setUpdatedAt(LocalDateTime.now());
 
         BudgetLimit saved = budgetLimitRepository.save(entity);
-        logger.info("[budget.limits] <- upsert txId={} account={} period={} id={}", transactionId, normalizedAccount, normalizedPeriod, saved.getId());
+        logger.info("[budget.limits] <- upsert txId={} account={} period=BLANK id={}", transactionId, normalizedAccount, saved.getId());
         return saved;
     }
 
@@ -83,9 +82,8 @@ public class BudgetLimitService {
      * Returns all users' budget limits for a given statement period.
      */
     public List<BudgetLimit> findByPeriod(String statementPeriod) {
-        String normalizedPeriod = normalizePeriod(statementPeriod);
-        logger.info("[budget.limits] findByPeriod period={}", normalizedPeriod);
-        return budgetLimitRepository.findByStatementPeriod(normalizedPeriod);
+        logger.info("[budget.limits] findByPeriod period=ALL");
+        return budgetLimitRepository.findAll();
     }
 
     /**
