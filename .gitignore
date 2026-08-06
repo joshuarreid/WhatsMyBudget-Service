@@ -32,3 +32,80 @@ build/
 ### VS Code ###
 .vscode/
 /bruno/WMB_Analytics/Projected Transactions/Account Projections by Date Range.bru
+/tools/CodingAgentWorkflow/.env.example
+/.env.example
+/tools/CodingAgentWorkflow/.gitignore
+/tools/.gitignore
+/bruno/WMB_Analytics/Transactions/Account Transactions by Date Range.bru
+/AGENTS.md
+/tools/CodingAgentWorkflow/workflow/approval-prompts.json
+/tools/CodingAgentWorkflow/src/lib/approvals.js
+/tools/CodingAgentWorkflow/src/integration/bootstrap.js
+/tools/CodingAgentWorkflow/src/bootstrap.test.js
+/tools/CodingAgentWorkflow/scripts/bootstrap-target-repo.js
+/bruno/WMB_Analytics/bruno.json
+/.github/copilot-instructions.md
+/.run/Copilot_Workflow_Dry_Run.run.xml
+/.run/Copilot_Workflow_Test.run.xml
+/tools/CodingAgentWorkflow/src/lib/env.js
+/tools/CodingAgentWorkflow/skills/idea-refine/examples.md
+/tools/CodingAgentWorkflow/skills/idea-refine/frameworks.md
+/tools/CodingAgentWorkflow/src/lib/fs.js
+/tools/CodingAgentWorkflow/src/lib/harbor.js
+/tools/CodingAgentWorkflow/.cache/harbor-memory-snapshot.json
+/tools/CodingAgentWorkflow/skills/idea-refine/scripts/idea-refine.sh
+/tools/CodingAgentWorkflow/src/index.js
+/bruno/WMB_Analytics/Projected Transactions/List Projections by Date Range.bru
+/bruno/WMB_Analytics/Transactions/List Transactions by Date Range.bru
+/bruno/WMB_Analytics/environments/local.bru
+/main.tf
+/tools/CodingAgentWorkflow/data/mcp-context.json
+/tools/CodingAgentWorkflow/data/notion-tickets.json
+/tools/CodingAgentWorkflow/package.json
+/tools/CodingAgentWorkflow/src/lib/paths.js
+/bruno/WMB_Analytics/Payment Summary/Payment Summary by Date Range.bru
+/tools/CodingAgentWorkflow/src/stages/phase1-governance.js
+/tools/CodingAgentWorkflow/src/stages/phase2-intake-context.js
+/tools/CodingAgentWorkflow/src/stages/phase3-triage-planning.js
+/tools/CodingAgentWorkflow/src/stages/phase4-implementation-reviews.js
+/tools/CodingAgentWorkflow/src/stages/phase5-out-of-scope.js
+/tools/CodingAgentWorkflow/src/stages/phase6-docs-adr-pr.js
+/tools/CodingAgentWorkflow/src/stages/phase7-portability.js
+/tools/CodingAgentWorkflow/PHASES.md
+/tools/CodingAgentWorkflow/src/lib/policy.js
+/bruno/WMB_Analytics/environments/prod.bru
+/bruno/WMB_Analytics/environments/prod.json
+/bruno/WMB_Analytics/Analytics/Range Categories.bru
+/bruno/WMB_Analytics/Analytics/Range Outliers.bru
+/bruno/WMB_Analytics/Analytics/Range Overview.bru
+/tools/CodingAgentWorkflow/skills/idea-refine/refinement-criteria.md
+/tools/CodingAgentWorkflow/SETUP.md
+/tools/CodingAgentWorkflow/skills/api-and-interface-design/SKILL.md
+/tools/CodingAgentWorkflow/skills/browser-testing-with-devtools/SKILL.md
+/tools/CodingAgentWorkflow/skills/ci-cd-and-automation/SKILL.md
+/tools/CodingAgentWorkflow/skills/code-review-and-quality/SKILL.md
+/tools/CodingAgentWorkflow/skills/code-simplification/SKILL.md
+/tools/CodingAgentWorkflow/skills/context-engineering/SKILL.md
+/tools/CodingAgentWorkflow/skills/debugging-and-error-recovery/SKILL.md
+/tools/CodingAgentWorkflow/skills/deprecation-and-migration/SKILL.md
+/tools/CodingAgentWorkflow/skills/documentation-and-adrs/SKILL.md
+/tools/CodingAgentWorkflow/skills/doubt-driven-development/SKILL.md
+/tools/CodingAgentWorkflow/skills/frontend-ui-engineering/SKILL.md
+/tools/CodingAgentWorkflow/skills/git-workflow-and-versioning/SKILL.md
+/tools/CodingAgentWorkflow/skills/idea-refine/SKILL.md
+/tools/CodingAgentWorkflow/skills/incremental-implementation/SKILL.md
+/tools/CodingAgentWorkflow/skills/interview-me/SKILL.md
+/tools/CodingAgentWorkflow/skills/performance-optimization/SKILL.md
+/tools/CodingAgentWorkflow/skills/planning-and-task-breakdown/SKILL.md
+/tools/CodingAgentWorkflow/skills/security-and-hardening/SKILL.md
+/tools/CodingAgentWorkflow/skills/shipping-and-launch/SKILL.md
+/tools/CodingAgentWorkflow/skills/source-driven-development/SKILL.md
+/tools/CodingAgentWorkflow/skills/spec-driven-development/SKILL.md
+/tools/CodingAgentWorkflow/skills/test-driven-development/SKILL.md
+/tools/CodingAgentWorkflow/skills/using-agent-skills/SKILL.md
+/bruno/WMB_Analytics/Analytics/Summaries by Period Range.bru
+/bruno/WMB_Analytics/Analytics/Summary by Period.bru
+/tools/CodingAgentWorkflow/src/workflow.js
+/tools/CodingAgentWorkflow/src/workflow.test.js
+/tools/CodingAgentWorkflow/workflow/workflow-policy.json
+/tools/CodingAgentWorkflow/workflow/workflow-policy.schema.json
