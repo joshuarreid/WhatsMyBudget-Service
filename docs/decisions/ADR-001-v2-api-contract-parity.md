@@ -52,9 +52,9 @@ Adopt a parity-first policy for v2 controller behavior:
 - Better confidence from explicit contract tests around common regression areas.
 - Some inconsistency remains where v1 behavior is intentionally preserved for compatibility.
 - Future standardization work should be done behind a separate ADR and versioning plan.
-+
-+## Related Decisions
-+- `docs/decisions/ADR-002-v1-api-decommission-modes.md` — v1 retirement is managed separately through `api.v1.mode`.
+
+## Related Decisions
+- `docs/decisions/ADR-002-v1-api-decommission-modes.md` — v1 retirement is managed separately through `api.v1.mode`.
 
 ## Related Changes
 - `src/main/java/com/example/wmbservice/controller/PaymentSummaryControllerV2.java`

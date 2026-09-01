@@ -14,13 +14,14 @@ This folder stores architectural decisions for the `wmbservice` codebase.
 |---|---|---|---|---|
 | `ADR-001` | v2 API contract parity for controllers | Accepted | 2026-06-10 | Keep v2 behavior aligned with v1, strengthen contract tests |
 | `ADR-002` | v1 API decommission modes | Accepted | 2026-06-10 | Stage v1 retirement through active, deprecated, and disabled modes |
+| `ADR-003` | budget limits schema and v2 API | Accepted | 2026-08-05 | Add statement-period-keyed persistence and idempotent v2 budget limits endpoints |
 
 ## Naming Convention
 
-Use sequential numbering and descriptive slugs:
+Use sequential numbering and a descriptive kebab-case slug:
 
-- `ADR-001-some-decision.md`
-- `ADR-002-another-decision.md`
+- `ADR-004-short-decision-title.md`
+- `ADR-005-another-short-title.md`
 
 ## Template
 

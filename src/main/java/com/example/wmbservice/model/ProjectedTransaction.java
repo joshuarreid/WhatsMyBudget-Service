@@ -26,11 +26,16 @@ import java.util.Objects;
 @Setter
 @Entity
 @Table(name = "projected_transactions",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uniq_projected_series_occurrence", columnNames = {"series_id", "occurrence_date"})
+        },
         indexes = {
                 @Index(name = "idx_statement_period_proj", columnList = "statement_period"),
                 @Index(name = "idx_account_proj", columnList = "account"),
                 @Index(name = "idx_payment_method_proj", columnList = "payment_method"),
-                @Index(name = "idx_category_proj", columnList = "category")
+                @Index(name = "idx_category_proj", columnList = "category"),
+                @Index(name = "idx_projected_series_id", columnList = "series_id"),
+                @Index(name = "idx_projected_occurrence_date", columnList = "occurrence_date")
         }
 )
 public class ProjectedTransaction {
@@ -82,6 +87,16 @@ public class ProjectedTransaction {
     @NotBlank
     @Column(name = "statement_period", nullable = false)
     private String statementPeriod;
+
+    @JsonProperty("series_id")
+    @JsonAlias("seriesId")
+    @Column(name = "series_id")
+    private Long seriesId;
+
+    @JsonProperty("occurrence_date")
+    @JsonAlias("occurrenceDate")
+    @Column(name = "occurrence_date")
+    private LocalDate occurrenceDate;
 
     /**
      * Deterministic row hash used for deduplication (SHA-256 hex).
@@ -149,6 +164,8 @@ public class ProjectedTransaction {
                 ", createdTime=" + createdTime +
                 ", paymentMethod='" + paymentMethod + '\'' +
                 ", statementPeriod='" + statementPeriod + '\'' +
+                ", seriesId=" + seriesId +
+                ", occurrenceDate=" + occurrenceDate +
                 ", rowHash='" + rowHash + '\'' +
                 '}';
     }

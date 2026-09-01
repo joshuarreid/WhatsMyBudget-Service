@@ -74,4 +74,8 @@ public interface ProjectedTransactionRepository extends JpaRepository<ProjectedT
                                                      @Param("transactionDate") LocalDate transactionDate,
                                                      @Param("paymentMethod") String paymentMethod,
                                                      @Param("statementPeriod") String statementPeriod);
+
+    List<ProjectedTransaction> findBySeriesId(Long seriesId);
+
+    Optional<ProjectedTransaction> findBySeriesIdAndOccurrenceDate(Long seriesId, LocalDate occurrenceDate);
 }

@@ -1,4 +1,4 @@
-DROP PROCEDURE IF EXISTS migrate_budget_limits;
+dDROP PROCEDURE IF EXISTS migrate_budget_limits;
 DROP TABLE IF EXISTS budget_limits;
 
 CREATE TABLE budget_limits (

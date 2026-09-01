@@ -48,14 +48,45 @@ CREATE TABLE projected_transactions (
     created_time DATETIME,
     payment_method VARCHAR(64) NOT NULL,
     statement_period VARCHAR(32) NOT NULL,
+    series_id BIGINT,
+    occurrence_date DATE,
     INDEX idx_projected_statement_period (statement_period),
     INDEX idx_projected_transaction_date (transaction_date),
     INDEX idx_projected_account (account),
     INDEX idx_projected_payment_method (payment_method),
     INDEX idx_projected_category (category),
+    INDEX idx_projected_occurrence_date (occurrence_date),
     INDEX idx_projected_criticality_id (criticality_id),
+    UNIQUE KEY uniq_projected_series_occurrence (series_id, occurrence_date),
     CONSTRAINT fk_projected_transaction_criticality FOREIGN KEY (criticality_id) REFERENCES criticality(id)
 );
+
+CREATE TABLE projected_transaction_series (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    category VARCHAR(128) NOT NULL,
+    criticality VARCHAR(32) NOT NULL,
+    criticality_id BIGINT,
+    account VARCHAR(32) NOT NULL,
+    payment_method VARCHAR(64) NOT NULL,
+    statement_period VARCHAR(32) NOT NULL,
+    start_date DATE NOT NULL,
+    recurring_every_months INT NOT NULL,
+    recurring_until DATE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_time DATETIME,
+    CONSTRAINT chk_projected_series_every_months CHECK (recurring_every_months >= 1),
+    INDEX idx_projected_series_account (account),
+    INDEX idx_projected_series_statement_period (statement_period),
+    INDEX idx_projected_series_start_date (start_date),
+    INDEX idx_projected_series_active (active),
+    INDEX idx_projected_series_criticality_id (criticality_id),
+    CONSTRAINT fk_projected_series_criticality FOREIGN KEY (criticality_id) REFERENCES criticality(id)
+);
+
+ALTER TABLE projected_transactions
+    ADD CONSTRAINT fk_projected_transaction_series FOREIGN KEY (series_id) REFERENCES projected_transaction_series(id) ON DELETE SET NULL;
 
 CREATE TABLE statement_periods (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

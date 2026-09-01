@@ -8,8 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.Arrays;
 import java.util.List;
@@ -52,36 +50,5 @@ public class WebConfig {
 
         logger.info("CORS configuration applied for /** to origin patterns: {}", allowedOriginsList);
         return source;
-    }
-
-    /**
-     * Configures CORS to allow requests from frontend(s).
-     * Origins are loaded from application.properties/environment variable.
-     * @return WebMvcConfigurer instance
-     */
-    @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        logger.info("WebConfig.corsConfigurer() entry - Raw origins string: {}", corsAllowedOrigins);
-
-        List<String> allowedOriginsList = Arrays.stream(corsAllowedOrigins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toList());
-
-        logger.info("Resolved allowedOriginsList: {}", allowedOriginsList);
-
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedOriginPatterns(allowedOriginsList.toArray(new String[0]))
-                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                        .allowedHeaders("content-type", "x-transaction-id", "authorization")
-                        .exposedHeaders("X-Transaction-ID")
-                        .allowCredentials(true);
-
-                logger.info("CORS mapping applied for /** to origin patterns: {}", allowedOriginsList);
-            }
-        };
     }
 }
